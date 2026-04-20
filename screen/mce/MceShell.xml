@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false">
+
+    <actions>
+        <!-- Identity Handshake -->
+        <service-call name="mce2.SessionServices.get#ConnectionToken" out-map="tokenOut"/>
+        <set field="connectionToken" from="tokenOut.connectionToken"/>
+        <set field="isDesignMode" from="tokenOut.isDesignMode ?: 'N'"/>
+        
+        <!-- Foundation Assets (Quasar/Vue) -->
+        <script>
+            html_stylesheets.add("https://unpkg.com/quasar@2.12.6/dist/quasar.prod.css")
+            footer_scripts.add("https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js")
+            footer_scripts.add("https://unpkg.com/quasar@2.12.6/dist/quasar.umd.prod.js")
+            
+            // Resolve and include the relocated MceApp component
+            // We use the 'asset' transition defined in the parent moqui-mce.xml
+            String appUrl = sri.makeUrlByType("asset/MceApp.qvt.js", "transition", null, "false").pathWithParams
+            footer_scripts.add(appUrl)
+        </script>
+    </actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html"><![CDATA[
+                <!-- MCE2 Vue Mount Point -->
+                <div id="q-app" v-cloak></div>
+                
+                <script type="module">
+                    document.addEventListener('DOMContentLoaded', () => {
+                        try {
+                            if (window.Vue && window.Quasar && window.MceApp) {
+                                const { createApp } = window.Vue;
+                                const app = createApp(window.MceApp, {
+                                    connectionToken: '${connectionToken}',
+                                    isDesignMode: '${isDesignMode}'
+                                });
+                                app.use(window.Quasar, {
+                                    config: {
+                                        dark: false
+                                    }
+                                });
+                                app.mount('#q-app');
+                                console.info("MCE2 Shell: Production/Design UI Foundation initialized.");
+                            } else {
+                                throw new Error("Missing dependencies: Vue, Quasar, or MceApp component definition.");
+                            }
+                        } catch (err) {
+                            console.error("MCE2 Shell Boot Failure:", err);
+                        }
+                    });
+                </script>
+                
+                <style>
+                    [v-cloak] { display: none !important; }
+                    body { margin: 0; padding: 0; overflow: hidden; background-color: #eceff1; }
+                    .letter-spacing-1 { letter-spacing: 1px; }
+                    .display-inline-block { display: inline-block; }
+                    
+                    /* Visual Parity with moqui-ai theme */
+                    .bg-blue-grey-10 { background: #263238 !important; }
+                    .bg-blue-grey-11 { background: #1c262b !important; }
+                </style>
+            ]]></text>
+        </render-mode>
+    </widgets>
+</screen>

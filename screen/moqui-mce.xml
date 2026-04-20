@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false" allow-extra-path="true">
+
+    <transition name="asset" read-only="true">
+        <actions>
+            <script><![CDATA[
+                def path = sri.screenUrlInfo.extraPathNameList.join("/")
+                ec.web.sendResourceResponse("component://moqui-mce/screen/mce/assets/" + path)
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <subscreens default-item="mce-shell">
+        <subscreens-item name="mce-shell" location="component://moqui-mce/screen/mce/MceShell.xml"/>
+    </subscreens>
+
+    <widgets>
+        <subscreens-active/>
+    </widgets>
+</screen>

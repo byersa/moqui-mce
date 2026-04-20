@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="moqui-mce" version="1.0.0"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/component-3.xsd">
+    <depends-on name="moqui-mcp-2" version="1.0.0"/>
+    <depends-on name="mantle-udm" version="2.2.1"/>
+
+    <entity-factory load-path="entity/"/>
+    <service-factory load-path="service/"/>
+    <screen-factory load-path="screen/"/>
+    
+    <!-- Load data files in the data directory -->
+    <entity-factory load-data="data/"/>
+
+    <on-startup>
+        <service-call name="mce2.SessionServices.start#NodeServer"/>
+    </on-startup>
+</component>

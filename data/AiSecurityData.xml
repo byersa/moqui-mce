@@ -1,0 +1,36 @@
+<entity-facade-xml type="seed">
+    <!-- MCE2 Security Groups & Artifacts -->
+    <!-- Self-contained within moqui-framework dependencies (ADMIN, ALL_USERS, etc.) -->
+
+    <!-- HUDDLE REST API (Legacy support for moqui-ai transition) -->
+    <moqui.security.ArtifactGroup artifactGroupId="HUDDLE_REST_API" description="Huddle REST API Group"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="HUDDLE_REST_API" artifactName="/huddle" artifactTypeEnumId="AT_REST_PATH" inheritAuthz="Y"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="HUDDLE_REST_API" artifactName="/moquiai" artifactTypeEnumId="AT_REST_PATH" inheritAuthz="Y"/>
+
+    <moqui.security.ArtifactAuthz artifactAuthzId="HUDDLE_REST_API_ADMIN" artifactGroupId="HUDDLE_REST_API" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+    <moqui.security.ArtifactAuthz artifactAuthzId="HUDDLE_REST_API_ALL" artifactGroupId="HUDDLE_REST_API" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- MCE2 Architectural Services Security -->
+    <moqui.security.ArtifactGroup artifactGroupId="MCE2_SERVICES" description="MCE2 Architectural Services"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCE2_SERVICES" artifactName="mce2\..*" nameIsPattern="Y" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y"/>
+    
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCE2_SERVICES_ADMIN" artifactGroupId="MCE2_SERVICES" 
+                                  userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- Assign administrative permissions to the standard Moqui ADMIN group -->
+    <moqui.security.UserPermission userPermissionId="MCE_DESIGN_ADMIN" description="MCE2 Design-time Admin Access"/>
+    <moqui.security.UserGroupPermission userGroupId="ADMIN" userPermissionId="MCE_DESIGN_ADMIN" fromDate="2025-01-01 00:00:00.000"/>
+
+    <!-- User Account for ofbiz (Legacy moqui-ai support) -->
+    <moqui.security.UserAccount userId="OFBIZ" username="ofbiz" currentPassword="heber" 
+                                 userFullName="Open For Business" emailAddress="ofbiz@example.com"/>
+    <moqui.security.UserGroupMember userGroupId="ADMIN" userId="OFBIZ" fromDate="2024-01-01 00:00:00.000"/>
+
+    <!-- Map john.doe to the ADMIN group to ensure access without external component dependencies -->
+    <!-- Note: EX_JOHN_DOE is a common ID for John Doe in this environment -->
+    <!-- User Account for john.doe (ensure connection to ADMIN) -->
+    <moqui.security.UserAccount userId="EX_JOHN_DOE" username="john.doe" currentPassword="moqui" 
+                                 userFullName="John Doe" emailAddress="john.doe@example.com"/>
+    <moqui.security.UserGroupMember userGroupId="ADMIN" userId="EX_JOHN_DOE" fromDate="2025-01-01 00:00:00.000"/>
+
+</entity-facade-xml>

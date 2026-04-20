@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="execute" noun="GroovyScript" authenticate="true">
+        <description>Executes a raw Groovy script string within the Moqui ExecutionContext. Useful for rapid prototyping and administrative tasks.</description>
+        <in-parameters>
+            <parameter name="script" type="String" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="result" type="String"/>
+            <parameter name="error" type="String"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                try {
+                    // Wrap the script to capture println output by defining a local println closure
+                    // This bypasses the default Script.println() and captures everything in 'sw'
+                    String wrappedScript = """
+                        def sw = new java.io.StringWriter()
+                        def pw = new java.io.PrintWriter(sw)
+                        def println = { Object msg -> pw.println(msg); }
+                        def result = null
+                        try {
+                            result = ( { -> 
+                                ${script} 
+                            } )()
+                        } finally {
+                            pw.flush()
+                        }
+                        return [output: sw.toString(), result: result]
+                    """
+                    
+                    // Use standard Moqui script evaluation
+                    def scriptOutput = ec.resource.script(wrappedScript, "groovy")
+                    
+                    if (scriptOutput instanceof Map) {
+                        StringBuilder totalBuffer = new StringBuilder(scriptOutput.output ?: "")
+                        
+                        if (scriptOutput.result != null) {
+                            String resStr = scriptOutput.result.toString()
+                            if (resStr.length() > 5000) resStr = resStr.substring(0, 5000) + "... [truncated]"
+                            if (totalBuffer.length() > 0) totalBuffer.append("\n")
+                            totalBuffer.append("Script Return Value: ").append(resStr)
+                        }
+                        context.result = totalBuffer.toString()
+                    }
+                    
+                    if (context.result) ec.logger.info("Groovy Script Output:\n" + context.result)
+                    
+                } catch (Exception e) {
+                    ec.logger.error("Error executing Groovy script via execute#GroovyScript", e)
+                    context.error = e.getMessage() ?: e.toString()
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

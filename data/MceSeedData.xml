@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/entity-facade-xml-3.xsd">
+
+    <!-- MoquiAiLayer Types -->
+    <moqui.basic.EnumerationType enumTypeId="MoquiAiLayerType" description="Moqui AI Layer Type"/>
+    <moqui.basic.Enumeration enumId="MalGis" enumTypeId="MoquiAiLayerType" description="GIS Canvas"/>
+    <moqui.basic.Enumeration enumId="MalDrawing" enumTypeId="MoquiAiLayerType" description="Drawing Canvas"/>
+    <moqui.basic.Enumeration enumId="MalUdm" enumTypeId="MoquiAiLayerType" description="UDM View/Form"/>
+    <moqui.basic.Enumeration enumId="MalProcess" enumTypeId="MoquiAiLayerType" description="Process Flow"/>
+
+    <!-- MCE Status -->
+    <moqui.basic.StatusType statusTypeId="MceInteractionStatus" description="MCE Interaction Status"/>
+    <moqui.basic.StatusItem statusId="MceActive" statusTypeId="MceInteractionStatus" description="Active"/>
+    <moqui.basic.StatusItem statusId="MceExpired" statusTypeId="MceInteractionStatus" description="Expired"/>
+
+</entity-facade-xml>

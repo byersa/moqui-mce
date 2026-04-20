@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entities xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/entity-definition-3.xsd">
+
+    <entity entity-name="MoquiAiLayer" package="moqui.mce" enable-audit-log="true">
+        <description>Registry for MCE2 layers, isolating assets and declaring MCP capabilities.</description>
+        <field name="layerId" type="id" is-pk="true"/>
+        <field name="layerName" type="text-medium"/>
+        <field name="layerTypeEnumId" type="id" description="GIS, Drawing, UDM, etc."/>
+        <field name="mcpCapabilities" type="text-long" description="JSON or comma-separated list of MCP tools this layer supports."/>
+        <field name="description" type="text-medium"/>
+        <field name="assetPath" type="text-medium" description="Path to the .qvt.js asset for this layer."/>
+        <field name="isDesignModeActive" type="text-indicator" description="Is Design Mode currently active for this layer? (Y/N)"/>
+
+        <relationship type="one" title="LayerType" related="moqui.basic.Enumeration">
+            <key-map field-name="layerTypeEnumId" related-field-name="enumId"/>
+        </relationship>
+    </entity>
+
+    <entity entity-name="LayerInteraction" package="mce2.layer" enable-audit-log="true">
+        <description>Session-aware tracking of interactions between AI Chat and specific MCE layers.</description>
+        <field name="mcpToken" type="id" is-pk="true"/>
+        <field name="userId" type="id"/>
+        <field name="statusId" type="id"/>
+        <field name="isDesignMode" type="text-indicator" description="Y/N flag indicating if the session has design-time privileges."/>
+        <field name="fromDate" type="date-time" default-now="true"/>
+
+        <relationship type="one" related="moqui.security.UserAccount">
+            <key-map field-name="userId"/>
+        </relationship>
+        <relationship type="one" related="moqui.basic.StatusItem">
+            <key-map field-name="statusId"/>
+        </relationship>
+    </entity>
+
+
+</entities>

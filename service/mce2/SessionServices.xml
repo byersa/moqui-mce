@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="ConnectionToken" authenticate="false">
+        <out-parameters>
+            <parameter name="connectionToken" type="String" required="true"/>
+            <parameter name="isDesignMode" type="String"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mce/service/mce2/SessionServices_getConnectionToken.groovy"/>
+        </actions>
+    </service>
+
+    <service verb="start" noun="NodeServer" transaction="ignore" authenticate="false">
+        <actions>
+            <script location="component://moqui-mce/service/mce2/SessionServices_startNodeServer.groovy"/>
+        </actions>
+    </service>
+
+</services>
