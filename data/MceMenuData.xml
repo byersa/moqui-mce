@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/entity-facade-xml-3.xsd">
+
+    <!-- 
+        Register MCE2 Architect in the main Apps menu using standard Moqui screen entity.
+        Note: The entity name is SubscreensItem (plural).
+    -->
+    <moqui.screen.SubscreensItem screenLocation="component://webroot/screen/webroot/apps.xml"
+                                 userGroupId="ALL_USERS"
+                                 subscreenName="mce" 
+                                 subscreenLocation="component://moqui-mce/screen/mce/MceShell.xml" 
+                                 menuTitle="MCE2 Architect" 
+                                 menuIndex="99" 
+                                 menuInclude="Y"/>
+
+</entity-facade-xml>

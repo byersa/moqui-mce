@@ -1,0 +1,33 @@
+{
+  "categories": [
+    {
+      "name": "Layout",
+      "items": [
+        { "label": "container", "icon": "crop_square", "command": "Help me add a container for", "description": "Generic div wrapper for layout" },
+        { "label": "section", "icon": "view_quilt", "command": "Help me add a section named", "description": "Conditional widgets block" },
+        { "label": "form-single", "icon": "content_paste", "command": "Help me add a form-single for", "description": "Single-record edit/view form" },
+        { "label": "form-list", "icon": "format_list_bulleted", "command": "Help me add a form-list for", "description": "Tabular data list" }
+      ]
+    },
+    {
+      "name": "Inputs",
+      "items": [
+        { "label": "text-line", "icon": "text_fields", "command": "Help me add a text-line field for", "description": "Single line text input" },
+        { "label": "text-area", "icon": "notes", "command": "Help me add a text-area field for", "description": "Multi-line text input" },
+        { "label": "drop-down", "icon": "arrow_drop_down_circle", "command": "Help me add a drop-down field for", "description": "Select from list" },
+        { "label": "date-time", "icon": "event", "command": "Help me add a date-time field for", "description": "Date and/or time picker" },
+        { "label": "check", "icon": "check_box", "command": "Help me add a check field for", "description": "Boolean checkbox" }
+      ]
+    },
+    {
+      "name": "Display & Actions",
+      "items": [
+        { "label": "label", "icon": "label", "command": "Help me add a label with text", "description": "Static text display" },
+        { "label": "link", "icon": "link", "command": "Help me add a link to", "description": "Anchor or button navigation" },
+        { "label": "submit", "icon": "send", "command": "Help me add a submit button", "description": "Form submission button" },
+        { "label": "image", "icon": "image", "command": "Help me add an image from", "description": "External or internal image" },
+        { "label": "container-dialog", "icon": "picture_in_picture", "command": "Help me add a dialog for", "description": "Button that opens a modal" }
+      ]
+    }
+  ]
+}

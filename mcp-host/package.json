@@ -1,0 +1,14 @@
+{
+  "name": "mce2-mcp-host",
+  "version": "1.0.0",
+  "description": "MCE2 MCP Server for Moqui",
+  "main": "mcp-host.js",
+  "scripts": {
+    "start": "node mcp-host.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "axios": "^1.15.0"
+  }
+}

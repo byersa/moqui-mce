@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rest-api xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/rest-api-3.xsd"
+          name="mce2" version="s1" require-csrf="false" require-authentication="false">
+    
+    <resource name="AvailableApps">
+        <method type="get" require-authentication="false">
+            <service name="mce2.SessionServices.get#AvailableApps"/>
+        </method>
+    </resource>
+
+    <resource name="Registry">
+        <method type="get" require-authentication="false">
+            <service name="mce2.SessionServices.get#Registry"/>
+        </method>
+    </resource>
+
+    <resource name="getConnectionToken">
+        <method type="get" require-authentication="false">
+            <service name="mce2.SessionServices.get#ConnectionToken"/>
+        </method>
+    </resource>
+
+    <!-- Modernized Project Services -->
+    <resource name="Components">
+        <method type="get" require-authentication="false">
+            <service name="mce2.ProjectServices.get#Components"/>
+        </method>
+    </resource>
+
+    <resource name="Screens">
+        <method type="get" require-authentication="false">
+            <service name="mce2.ProjectServices.get#Screens"/>
+        </method>
+    </resource>
+
+    <resource name="Explorer">
+        <method type="get" require-authentication="false">
+            <service name="mce2.ProjectServices.get#Explorer"/>
+        </method>
+    </resource>
+
+    <resource name="BlueprintFromXml">
+        <method type="get" require-authentication="false">
+            <service name="mce2.ProjectServices.generate#BlueprintFromXml"/>
+        </method>
+    </resource>
+    
+</rest-api>

@@ -1,0 +1,15 @@
+{
+  "categories": [
+    {
+      "name": "Logic Actions",
+      "items": [
+        { "label": "entity-one", "icon": "filter_1", "command": "Help me add an entity-one action for", "description": "Fetch a single record by PK" },
+        { "label": "entity-find", "icon": "search", "command": "Help me add an entity-find action for", "description": "Search for multiple records" },
+        { "label": "entity-update", "icon": "edit", "command": "Help me add an entity-update for", "description": "Modify an existing record" },
+        { "label": "service-call", "icon": "bolt", "command": "Help me call the service", "description": "Execute another service" },
+        { "label": "script", "icon": "description", "command": "Help me add a groovy script to", "description": "Inline Groovy logic" },
+        { "label": "return", "icon": "keyboard_return", "command": "Help me return a response of", "description": "Exit logic flow" }
+      ]
+    }
+  ]
+}

@@ -29,8 +29,11 @@
     <!-- Map john.doe to the ADMIN group to ensure access without external component dependencies -->
     <!-- Note: EX_JOHN_DOE is a common ID for John Doe in this environment -->
     <!-- User Account for john.doe (ensure connection to ADMIN) -->
-    <moqui.security.UserAccount userId="EX_JOHN_DOE" username="john.doe" currentPassword="moqui" 
-                                 userFullName="John Doe" emailAddress="john.doe@example.com"/>
+    <moqui.security.UserAccount userId="EX_JOHN_DOE"
+                                username="john.doe" 
+                                partyId="EX_JOHN_DOE"
+                                password="moqui" 
+                                passwordHashType="SHA-256"/>
     <moqui.security.UserGroupMember userGroupId="ADMIN" userId="EX_JOHN_DOE" fromDate="2025-01-01 00:00:00.000"/>
 
 </entity-facade-xml>

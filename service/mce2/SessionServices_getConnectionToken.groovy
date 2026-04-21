@@ -1,32 +1,27 @@
 import org.moqui.context.ExecutionContext
 
 ExecutionContext ec = context.ec
-String sessionId = ec.web.session.getId()
-def tokenCache = ec.cache.getCache("mcp-connection-tokens")
-if (tokenCache == null) {
-    tokenCache = ec.cache.makeCache("mcp-connection-tokens")
-}
 
-String token = tokenCache.get(sessionId)
+// 1. Generate fresh UUID for this interaction
+String token = java.util.UUID.randomUUID().toString()
+
 // Check for MCE_DESIGN_ADMIN permission for design-time privileges
 String isDesignMode = ec.user.hasPermission("MCE_DESIGN_ADMIN") ? "Y" : "N"
 
-if (!token) {
-    // 1. Generate UUID
-    token = java.util.UUID.randomUUID().toString()
-    tokenCache.put(sessionId, token)
+// Update the session token cache
+def tokenCache = ec.cache.getCache("mcp-connection-tokens") ?: ec.cache.makeCache("mcp-connection-tokens")
+tokenCache.put(ec.web.session.getId(), token)
 
-    // 2. Create LayerInteraction record using the auto-create service
-    ec.service.sync().name("create#mce2.layer.LayerInteraction")
-        .parameters([
-            mcpToken: token, 
-            userId: ec.user.userId, 
-            statusId: 'MceActive', 
-            fromDate: ec.user.nowTimestamp,
-            isDesignMode: isDesignMode
-        ])
-        .disableAuthz().call()
-}
+// 2. Create LayerInteraction record using the auto-create service
+ec.service.sync().name("create#mce2.layer.LayerInteraction")
+    .parameters([
+        mcpToken: token, 
+        userId: ec.user.userId ?: '_NA_', 
+        statusId: 'MceActive', 
+        fromDate: ec.user.nowTimestamp,
+        isDesignMode: isDesignMode
+    ])
+    .disableAuthz().call()
 
 context.connectionToken = token
 context.isDesignMode = isDesignMode

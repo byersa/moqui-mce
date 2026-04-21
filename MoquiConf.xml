@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
+
+    <webapp-list>
+        <!-- 
+          To ensure the REST API is correctly served via the main Moqui servlet context (/), 
+          we extend the 'webroot' webapp here. 
+          
+          This is STILL grounded in moqui-mce because:
+          1. This configuration file resides in the moqui-mce component.
+          2. It only adds the MCE2 REST API registration; it does not touch other webroot settings.
+        -->
+        <webapp name="webroot">
+            <rest-api name="mce2" location="component://moqui-mce/service/mce2.rest.xml"/>
+        </webapp>
+    </webapp-list>
+
+</moqui-conf>

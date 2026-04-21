@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="create" noun="Component" authenticate="false">
+        <in-parameters>
+            <parameter name="componentName" type="String" required="true"/>
+            <parameter name="description" type="String"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="message" type="String"/>
+        </out-parameters>
+        <actions>
+            <!-- Note: Relocating the logic here for self-containment -->
+            <script><![CDATA[
+                import java.nio.file.*
+                def runtimePath = ec.factory.runtimePath
+                def componentDirPath = Paths.get(runtimePath, "component", componentName)
+                
+                if (Files.exists(componentDirPath)) {
+                    context.success = false
+                    context.message = "Component ${componentName} already exists."
+                    return
+                }
+
+                // Create basic structure
+                Files.createDirectories(componentDirPath)
+                ['screen', 'entity', 'service', 'data', 'artifacts/blueprints'].each { sub ->
+                    Files.createDirectories(componentDirPath.resolve(sub))
+                }
+
+                // Create component.xml
+                def componentXml = """<component name="${componentName}">
+    <entity-factory load-data="data/"/>
+</component>"""
+                Files.write(componentDirPath.resolve("component.xml"), componentXml.getBytes())
+
+                context.success = true
+                context.message = "Component ${componentName} created successfully in moqui-mce context."
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="Components" authenticate="false">
+        <out-parameters>
+            <parameter name="components" type="List"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                def runtimePath = ec.factory.runtimePath
+                def componentDir = new File(runtimePath, "component")
+                def list = []
+                if (componentDir.exists()) {
+                    componentDir.eachDir { File compDir ->
+                        if (compDir.name.startsWith(".")) return
+                        // Discovery logic: components with mce-compatible artifacts
+                        list.add(compDir.name)
+                    }
+                }
+                context.components = list.sort()
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="Screens" authenticate="false">
+        <in-parameters>
+            <parameter name="componentName" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="screens" type="List"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                def runtimePath = ec.factory.runtimePath
+                def compDir = new File(runtimePath, "component/${componentName}")
+                def screenDir = new File(compDir, "screen")
+                def list = []
+                if (screenDir.exists()) {
+                    screenDir.eachFile { file -> 
+                        if (file.name.endsWith(".json") || file.name.endsWith(".xml")) {
+                            list.add(file.name.replace(".json", "").replace(".xml", ""))
+                        }
+                    }
+                }
+                context.screens = list.unique().sort()
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="Explorer" authenticate="false">
+        <in-parameters>
+            <parameter name="componentName" required="true"/>
+            <parameter name="type" required="true"/> <!-- screen, entity, service -->
+        </in-parameters>
+        <out-parameters>
+            <parameter name="artifacts" type="List"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import groovy.json.JsonSlurper
+                import org.moqui.util.MNode
+                import org.moqui.resource.ResourceReference
+                
+                def runtimePath = ec.factory.runtimePath
+                def targetDir = new File(runtimePath, "component/${componentName}/${type}")
+                def artifactList = []
+                
+                if (targetDir.exists()) {
+                    if (type == "service") {
+                        targetDir.eachFileRecurse { file ->
+                            if (file.isDirectory()) return
+                            def fileName = file.name.replace(".xml", "").replace(".json", "")
+                            if (file.name.endsWith(".xml")) {
+                                try {
+                                    ResourceReference rr = ec.resource.getLocationReference("component://${componentName}/service/${file.name}")
+                                    if (rr?.exists) {
+                                        MNode root = MNode.parse(rr)
+                                        root.children("service").each { node ->
+                                            def sName = node.attribute("name") ?: "${node.attribute("verb")}${node.attribute("noun")}"
+                                            artifactList.add("${componentName}.${fileName}.${sName}")
+                                        }
+                                    }
+                                } catch (Exception e) { ec.logger.error("MCE Explorer: Error parsing ${file.name}: ${e.message}") }
+                            } else if (file.name.endsWith(".json")) {
+                                try {
+                                    def json = new JsonSlurper().parse(file)
+                                    def services = json.services ?: [json]
+                                    services.each { s ->
+                                        def sName = s.serviceName ?: "${s.verb}${s.noun}"
+                                        artifactList.add("${componentName}.${fileName}.${sName}")
+                                    }
+                                } catch (Exception e) { }
+                            }
+                        }
+                    } else {
+                        targetDir.eachFile { file ->
+                            if (file.name.endsWith(".json") || file.name.endsWith(".xml")) {
+                                artifactList.add(file.name.replace(".json", "").replace(".xml", ""))
+                            }
+                        }
+                    }
+                }
+                context.artifacts = artifactList.unique().sort()
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="generate" noun="BlueprintFromXml" authenticate="false">
+        <in-parameters>
+            <parameter name="componentName" required="true"/>
+            <parameter name="artifactName" required="true"/>
+            <parameter name="type" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="blueprint" type="Map"/>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="message" type="String"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import groovy.json.JsonOutput
+                import org.moqui.util.MNode
+                import org.moqui.resource.ResourceReference
+                
+                String locationStr = "component://${componentName}/${type}/${artifactName}.xml"
+                ResourceReference rr = ec.resource.getLocationReference(locationStr)
+                
+                if (rr == null || !rr.exists) {
+                    context.success = false
+                    context.message = "XML Source not found at ${locationStr}"
+                    return
+                }
+
+                def blueprint = [
+                    meta: [
+                        title: artifactName, 
+                        source: "Inferred from XML via moqui-mce",
+                        timestamp: ec.user.nowTimestamp.toString()
+                    ],
+                    services: []
+                ]
+                
+                try {
+                    // Modern MNode Parsing
+                    MNode root = MNode.parse(rr)
+                    
+                    if (type == "service") {
+                        def nodes = root.name == "services" ? root.children("service") : [root]
+                        nodes.each { node ->
+                            if (node.name != "service") return
+                            def srv = [
+                                verb: node.attribute("verb"),
+                                noun: node.attribute("noun"),
+                                type: node.attribute("type") ?: "inline",
+                                parameters: [in: [], out: []]
+                            ]
+                    
+                            // Explicit In-Parameters
+                            node.children("in-parameters").each { inParams ->
+                                inParams.children("parameter").each { p ->
+                                    srv.parameters.in << [
+                                        name: p.attribute("name"), 
+                                        type: p.attribute("type") ?: "String", 
+                                        required: p.attribute("required") == "true"
+                                    ]
+                                }
+                            }
+
+                            // Modern Auto-Parameters with PHI/Encrypt check
+                            node.children("auto-parameters").each { ap ->
+                                String entityName = ap.attribute("entity-name")
+                                if (entityName) {
+                                    def ed = ec.entity.getEntityDefinition(entityName)
+                                    ed.getFieldNames(true, true).each { fName ->
+                                        def fieldInfo = ed.getFieldInfo(fName)
+                                        def param = [
+                                            name: fName, 
+                                            type: fieldInfo.type, 
+                                            auto: true
+                                        ]
+                                        // Modern check for encrypted fields (PHI compliance)
+                                        if (fieldInfo.encrypt == "true" || fieldInfo.encrypt == true) param.phi = true
+                                        srv.parameters.in << param
+                                    }
+                                }
+                            }
+                    
+                            // Out-Parameters
+                            node.children("out-parameters").each { outParams ->
+                                outParams.children("parameter").each { p ->
+                                    srv.parameters.out << [name: p.attribute("name"), type: p.attribute("type") ?: "String"]
+                                }
+                            }
+                            blueprint.services << srv
+                        }
+                        // Flatten if only one service
+                        if (blueprint.services.size() == 1) {
+                            def single = blueprint.services[0]
+                            blueprint.remove("services")
+                            blueprint.putAll(single)
+                        }
+                    }
+
+                    // Modern Output Path: Grounded in moqui-mce artifacts
+                    def runtimePath = ec.factory.runtimePath
+                    def artifactsDir = new File(runtimePath, "component/moqui-mce/artifacts/blueprints")
+                    if (!artifactsDir.exists()) artifactsDir.mkdirs()
+                    
+                    def jsonFile = new File(artifactsDir, "${artifactName}.json")
+                    if (!jsonFile.parentFile.exists()) jsonFile.parentFile.mkdirs()
+                    jsonFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(blueprint))
+                    
+                    context.blueprint = blueprint
+                    context.success = true
+                    context.message = "Grounded blueprint saved at ${jsonFile.absolutePath}"
+                    ec.logger.info("MCE Modernization: Generated blueprint for ${artifactName}")
+                } catch (Exception e) {
+                    context.success = false
+                    context.message = "Modernization Error: ${e.message}"
+                    ec.logger.error("MCE Blueprint Error: ${e.message}", e)
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

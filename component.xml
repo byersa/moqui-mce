@@ -10,8 +10,4 @@
     
     <!-- Load data files in the data directory -->
     <entity-factory load-data="data/"/>
-
-    <on-startup>
-        <service-call name="mce2.SessionServices.start#NodeServer"/>
-    </on-startup>
 </component>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="verify" noun="LayerInteraction" >
+        <description>Hardcoded MCE2 Verification Service</description>
+        <out-parameters>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script>
+                // Generate a test mcpToken (UUID)
+                String mcpTokenUuid = java.util.UUID.randomUUID().toString()
+
+                // Manually create a mce2.layer.LayerInteraction record using ec.service.sync()
+                ec.service.sync().name("create#mce2.layer.LayerInteraction")
+                        .parameters([mcpToken: mcpTokenUuid, userId: '_NA_', statusId: 'MceActive', isDesignMode: 'Y'])
+                        .call()
+
+                // Immediately perform an ec.entity.find() to retrieve that same record
+                interaction = ec.entity.find("mce2.layer.LayerInteraction")
+                        .condition("mcpToken", mcpTokenUuid).one()
+
+                if (interaction == null) {
+                    ec.message.addError("FAILED: Could not find mcpToken ${mcpTokenUuid} in Database")
+                    return
+                }
+
+                // Return a success message
+                message = "SUCCESS: Found mcpToken ${mcpTokenUuid} in Database"
+            </script>
+        </actions>
+    </service>
+</services>

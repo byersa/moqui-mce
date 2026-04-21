@@ -7,6 +7,8 @@
             <parameter name="isDesignMode" type="String"/>
         </out-parameters>
         <actions>
+            <!-- Grounded startup: Ensure Node infrastructure is alive whenever a session token is requested -->
+            <service-call name="mce2.SessionServices.start#NodeServer" async="true"/>
             <script location="component://moqui-mce/service/mce2/SessionServices_getConnectionToken.groovy"/>
         </actions>
     </service>
@@ -14,6 +16,65 @@
     <service verb="start" noun="NodeServer" transaction="ignore" authenticate="false">
         <actions>
             <script location="component://moqui-mce/service/mce2/SessionServices_startNodeServer.groovy"/>
+        </actions>
+    </service>
+
+    <service verb="get" noun="AvailableApps" authenticate="false">
+        <out-parameters>
+            <parameter name="apps" type="List"><parameter name="app" type="Map"/></parameter>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                def appList = []
+                Map componentLocations = ec.factory.getComponentBaseLocations()
+
+                componentLocations.each { String compName, String location ->
+                    if (!location) return
+                    String path = location.startsWith("file:") ? location.substring(5) : location
+                    File compDir = new File(path)
+                    if (compDir.exists() && compDir.isDirectory()) {
+                        boolean hasSpec = new File(compDir, "spec").exists() || new File(compDir, "specs").exists()
+                        if (hasSpec) {
+                            def label = compName.split('-').collect{ it.capitalize() }.join(' ')
+                            appList.add([label: label, value: compName])
+                        }
+                    }
+                }
+
+                if (!appList.find { it.value == 'nursing-home' }) {
+                    appList.add([label: "Nursing Home Management", value: "nursing-home"])
+                }
+                context.apps = appList
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="Registry" authenticate="false">
+        <in-parameters>
+            <parameter name="type" required="true" default-value="ui-macro"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="registry" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.context.ExecutionContext
+                import groovy.json.JsonSlurper
+                ExecutionContext ec = context.ec
+                
+                // Try looking in moqui-mce first
+                def registryFile = new File(ec.factory.runtimePath, "component/moqui-mce/registry/${type}s.json")
+                if (!registryFile.exists()) {
+                    // Fallback to moqui-ai for now if it exists
+                    registryFile = new File(ec.factory.runtimePath, "component/moqui-ai/registry/${type}s.json")
+                }
+
+                if (registryFile.exists()) {
+                    context.registry = new JsonSlurper().parse(registryFile)
+                } else {
+                    context.registry = [categories: []]
+                }
+            ]]></script>
         </actions>
     </service>
 

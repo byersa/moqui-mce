@@ -1,0 +1,14 @@
+{
+    "name": "mce2-sidecar",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "start": "node websocket-server.js --port 3000 --mcp"
+    },
+    "dependencies": {
+        "ws": "^8.16.0",
+        "dotenv": "^16.4.1",
+        "env-paths": "^3.0.0",
+        "@modelcontextprotocol/sdk": "^1.0.1"
+    }
+}

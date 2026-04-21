@@ -1,7 +1,23 @@
 import org.moqui.context.ExecutionContext
 
 ExecutionContext ec = context.ec
-String componentName = "moqui-ai" // Node server currently lives in moqui-ai/mcp-host
+String componentName = "moqui-mce"
+
+// High-level check: If port 3000 is already active, we assume the infrastructure is healthy.
+// This prevents multiple async triggers (e.g. from rapid page reloads) from spawning duplicate processes.
+boolean alreadyRunning = false
+try {
+    def socket = new java.net.Socket("localhost", 3000)
+    socket.close()
+    alreadyRunning = true
+} catch (Exception e) {
+    // Port is available, proceed with startup
+}
+
+if (alreadyRunning) {
+    ec.logger.info("MCE2 Infrastructure is already active on port 3000. Skipping redundant startup.")
+    return
+}
 
 // Get all component locations from the factory
 Map<String, String> componentLocations = ec.factory.getComponentBaseLocations()
@@ -15,25 +31,49 @@ if (!location) {
 // Normalize the file path (stripping 'file:' prefix if present)
 String path = location.startsWith("file:") ? location.substring(5) : location
 File componentDir = new File(path)
-File nodeAppDir = new File(componentDir, "mcp-host")
 
-if (!nodeAppDir.exists()) {
-    ec.logger.error("Node server directory not found at: ${nodeAppDir.absolutePath}")
-    return
+// 1. The WebMCP Sidecar (WebSocket/HTTP on port 3000)
+File webmcpSidecarDir = new File(componentDir, "sidecar")
+
+if (!webmcpSidecarDir.exists()) {
+    ec.logger.warn("WebMCP sidecar directory not found at: ${webmcpSidecarDir.absolutePath}")
+} else {
+    try {
+        ec.logger.info("Starting MCE2 WebMCP Sidecar in ${webmcpSidecarDir.absolutePath}...")
+        // Explicitly using --foreground to help debugging and ensure Moqui captures output
+        ProcessBuilder pb = new ProcessBuilder("node", "websocket-server.js", "--port", "3000", "--host", "0.0.0.0", "--mcp", "--foreground")
+        pb.directory(webmcpSidecarDir)
+        pb.redirectErrorStream(true)
+        pb.inheritIO()
+        Process proc = pb.start()
+        
+        if (proc.isAlive()) {
+            ec.logger.info("MCE2 WebMCP sidecar process started successfully (PID: ${proc.pid()}).")
+        } else {
+            ec.logger.error("MCE2 WebMCP sidecar process exited immediately with code: ${proc.exitValue()}")
+        }
+    } catch (Exception e) {
+        ec.logger.error("Failed to start MCE2 WebMCP sidecar", e)
+    }
 }
 
-// Execute the Node process in the background
-try {
-    ec.logger.info("Starting Node.js server for MCP in ${nodeAppDir.absolutePath}...")
-    
-    // Using ProcessBuilder to run in background without blocking Moqui startup
-    ProcessBuilder pb = new ProcessBuilder("npm", "start")
-    pb.directory(nodeAppDir)
-    pb.redirectErrorStream(true)
-    pb.inheritIO() // Redirects output to Moqui's console for debugging
-    pb.start()
-    
-    ec.logger.info("Node.js server process initiated.")
-} catch (Exception e) {
-    ec.logger.error("Failed to start Node.js server", e)
+// 2. The Primary MCP Host (Stdio protocol for AI agents)
+File mcpHostDir = new File(componentDir, "mcp-host")
+if (mcpHostDir.exists()) {
+     try {
+        ec.logger.info("Starting MCE2 primary MCP Host in ${mcpHostDir.absolutePath}...")
+        ProcessBuilder pb = new ProcessBuilder("node", "mcp-host.js")
+        pb.directory(mcpHostDir)
+        pb.redirectErrorStream(true)
+        pb.inheritIO()
+        Process proc = pb.start()
+        
+        if (proc.isAlive()) {
+            ec.logger.info("MCE2 primary MCP Host process started successfully (PID: ${proc.pid()}).")
+        }
+    } catch (Exception e) {
+        ec.logger.error("Failed to start MCE2 primary MCP Host", e)
+    }
 }
+
+return context

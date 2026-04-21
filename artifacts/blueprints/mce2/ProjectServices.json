@@ -1,0 +1,137 @@
+{
+    "meta": {
+        "title": "mce2/ProjectServices",
+        "source": "Inferred from XML via moqui-mce",
+        "timestamp": "2026-04-21 16:33:48.383"
+    },
+    "services": [
+        {
+            "verb": "create",
+            "noun": "Component",
+            "type": "inline",
+            "parameters": {
+                "in": [
+                    {
+                        "name": "componentName",
+                        "type": "String",
+                        "required": true
+                    },
+                    {
+                        "name": "description",
+                        "type": "String",
+                        "required": false
+                    }
+                ],
+                "out": [
+                    {
+                        "name": "success",
+                        "type": "Boolean"
+                    },
+                    {
+                        "name": "message",
+                        "type": "String"
+                    }
+                ]
+            }
+        },
+        {
+            "verb": "get",
+            "noun": "Components",
+            "type": "inline",
+            "parameters": {
+                "in": [
+                    
+                ],
+                "out": [
+                    {
+                        "name": "components",
+                        "type": "List"
+                    }
+                ]
+            }
+        },
+        {
+            "verb": "get",
+            "noun": "Screens",
+            "type": "inline",
+            "parameters": {
+                "in": [
+                    {
+                        "name": "componentName",
+                        "type": "String",
+                        "required": true
+                    }
+                ],
+                "out": [
+                    {
+                        "name": "screens",
+                        "type": "List"
+                    }
+                ]
+            }
+        },
+        {
+            "verb": "get",
+            "noun": "Explorer",
+            "type": "inline",
+            "parameters": {
+                "in": [
+                    {
+                        "name": "componentName",
+                        "type": "String",
+                        "required": true
+                    },
+                    {
+                        "name": "type",
+                        "type": "String",
+                        "required": true
+                    }
+                ],
+                "out": [
+                    {
+                        "name": "artifacts",
+                        "type": "List"
+                    }
+                ]
+            }
+        },
+        {
+            "verb": "generate",
+            "noun": "BlueprintFromXml",
+            "type": "inline",
+            "parameters": {
+                "in": [
+                    {
+                        "name": "componentName",
+                        "type": "String",
+                        "required": true
+                    },
+                    {
+                        "name": "artifactName",
+                        "type": "String",
+                        "required": true
+                    },
+                    {
+                        "name": "type",
+                        "type": "String",
+                        "required": true
+                    }
+                ],
+                "out": [
+                    {
+                        "name": "blueprint",
+                        "type": "Map"
+                    },
+                    {
+                        "name": "success",
+                        "type": "Boolean"
+                    },
+                    {
+                        "name": "message",
+                        "type": "String"
+                    }
+                ]
+            }
+        }
+    ]
+}
