@@ -34,6 +34,9 @@ File componentDir = new File(path)
 
 // 1. The WebMCP Sidecar (WebSocket/HTTP on port 3000)
 File webmcpSidecarDir = new File(componentDir, "sidecar")
+    ec.logger.info("In startNodeServer, webmcpSidecarDir:" + webmcpSidecarDir);
+File mcpHostDir = new File(componentDir, "mcp-host")
+    ec.logger.info("In startNodeServer, mcpHostDir:" + mcpHostDir);
 
 if (!webmcpSidecarDir.exists()) {
     ec.logger.warn("WebMCP sidecar directory not found at: ${webmcpSidecarDir.absolutePath}")
@@ -41,10 +44,14 @@ if (!webmcpSidecarDir.exists()) {
     try {
         ec.logger.info("Starting MCE2 WebMCP Sidecar in ${webmcpSidecarDir.absolutePath}...")
         // Explicitly using --foreground to help debugging and ensure Moqui captures output
+        File sidecarLog = new File(webmcpSidecarDir, "mcp-sidecar.log")
         ProcessBuilder pb = new ProcessBuilder("node", "websocket-server.js", "--port", "3000", "--host", "0.0.0.0", "--mcp", "--foreground")
         pb.directory(webmcpSidecarDir)
+        //pb.inheritIO()
+        
+        // Redirect both output and errors to this file
         pb.redirectErrorStream(true)
-        pb.inheritIO()
+        pb.redirectOutput(ProcessBuilder.Redirect.appendTo(sidecarLog))
         Process proc = pb.start()
         
         if (proc.isAlive()) {
@@ -58,14 +65,15 @@ if (!webmcpSidecarDir.exists()) {
 }
 
 // 2. The Primary MCP Host (Stdio protocol for AI agents)
-File mcpHostDir = new File(componentDir, "mcp-host")
 if (mcpHostDir.exists()) {
      try {
         ec.logger.info("Starting MCE2 primary MCP Host in ${mcpHostDir.absolutePath}...")
+        File hostLog = new File(mcpHostDir, "mcp-host.log")
         ProcessBuilder pb = new ProcessBuilder("node", "mcp-host.js")
         pb.directory(mcpHostDir)
         pb.redirectErrorStream(true)
-        pb.inheritIO()
+        pb.redirectOutput(ProcessBuilder.Redirect.appendTo(hostLog))
+        //pb.inheritIO()
         Process proc = pb.start()
         
         if (proc.isAlive()) {

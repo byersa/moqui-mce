@@ -19,7 +19,10 @@ window.MceShell = {
                 { role: 'assistant', text: 'MCE2 Shell active. Infrastructure bridge initialized.' }
             ],
             userInput: '',
-            checkInterval: null
+            checkInterval: null,
+            pendingMessages: [],
+            isConnecting: false,
+            isSocketConnected: false
         }
     },
     template: `
@@ -73,7 +76,7 @@ window.MceShell = {
 
             <!-- AI Chat Drawer (Right) -->
             <q-drawer v-model="rightDrawerOpen" side="right" bordered class="bg-blue-grey-10 text-white" :width="350">
-                <div class="column full-height">
+                <div class="column no-wrap fit">
                     <!-- Messages Area -->
                     <q-scroll-area class="col q-pa-md">
                         <div v-for="(msg, idx) in messages" :key="idx" 
@@ -84,11 +87,13 @@ window.MceShell = {
                     </q-scroll-area>
 
                     <!-- Input Area -->
-                    <q-separator dark />
-                    <div id="mce-chat-input-area" class="bg-blue-grey-9 z-top" style="border-top: 1px solid rgba(255,255,255,0.05)">
+                    <div id="mce-chat-input-area" class="col-1">
                         <div class="q-pa-md">
                             <q-input dark dense filled v-model="userInput" placeholder="Ask AI Architect..." @keyup.enter="sendMessage">
                                 <template v-slot:append>
+                                    <q-spinner v-if="!isSocketConnected" color="blue-grey-4" size="1.2em" class="q-mr-sm">
+                                        <q-tooltip>Connecting to Architect...</q-tooltip>
+                                    </q-spinner>
                                     <q-btn round dense flat icon="send" @click="sendMessage" />
                                 </template>
                             </q-input>
@@ -98,9 +103,9 @@ window.MceShell = {
             </q-drawer>
 
             <!-- Main Content Area -->
-            <q-page-container>
+            <q-page-container class="overflow-hidden">
                 <q-page class="bg-blue-grey-11">
-                    <div id="mce-canvas" class="full-width full-height relative-position" style="min-height: calc(100vh - 50px);">
+                    <div id="mce-canvas" class="full-width relative-position overflow-hidden" style="height: calc(100vh - 51px);">
                         <div class="absolute-center text-center">
                             <q-icon name="auto_awesome" size="120px" color="blue-grey-9" style="opacity: 0.3"></q-icon>
                             <div class="text-h4 text-blue-grey-9 text-weight-thin q-mt-md" style="opacity: 0.5">MCE2 CANVAS</div>
@@ -125,14 +130,12 @@ window.MceShell = {
         sendMessage() {
             const text = this.userInput.trim();
             if (!text) return;
-            
+
             this.messages.push({ role: 'user', text: text });
             this.userInput = '';
 
-            console.info("MCE2 Bridge: Relaying command to WebMCP...", text);
-
             if (window.webmcp && window.webmcp.isConnected) {
-                // Relay to sidecar
+                console.info("MCE2 Bridge: Relaying command to WebMCP...", text);
                 window.webmcp._sendMessage({
                     type: 'userMessage',
                     text: text,
@@ -140,10 +143,44 @@ window.MceShell = {
                 });
                 this.messages.push({ role: 'assistant', text: 'Command sent to Architect.' });
             } else {
-                console.warn("MCE2 Bridge: WebMCP Offline. Check connection.");
-                this.messages.push({ role: 'assistant', text: 'Error: Bridge is offline. Connecting...' });
+                console.warn("MCE2 Bridge: WebMCP Offline. Queuing message.");
+                this.pendingMessages.push(text);
+                this.messages.push({ role: 'assistant', text: 'Bridge offline. Message queued. Connecting...' });
                 this.tryAutoConnect();
             }
+        },
+        onWebMcpStatus(event) {
+            const { status, message } = event.detail;
+            console.log("MCE2 Shell: WebMCP Status Change", status, message);
+            
+            if (status === 'connected') {
+                this.webMcpStatus = 'green-13';
+                this.isSocketConnected = true;
+                this.isConnecting = false;
+                this.flushPendingMessages();
+            } else if (status === 'connecting' || status === 'pending-auth') {
+                this.webMcpStatus = 'yellow-9';
+                this.isSocketConnected = false;
+                this.isConnecting = true;
+            } else {
+                this.webMcpStatus = 'red-9';
+                this.isSocketConnected = false;
+                this.isConnecting = false;
+            }
+        },
+        flushPendingMessages() {
+            if (this.pendingMessages.length === 0) return;
+            console.info(`MCE2 Bridge: Flushing ${this.pendingMessages.length} pending messages.`);
+            
+            while (this.pendingMessages.length > 0) {
+                const text = this.pendingMessages.shift();
+                window.webmcp._sendMessage({
+                    type: 'userMessage',
+                    text: text,
+                    token: this.connectionToken
+                });
+            }
+            this.messages.push({ role: 'assistant', text: 'Queued messages flushed to Architect.' });
         },
         onWebMcpMessage(event) {
             const msg = event.detail;
@@ -178,9 +215,15 @@ window.MceShell = {
         },
         async checkHeartbeat() {
             try {
-                await fetch('http://localhost:3000/webmcp.js', { mode: 'no-cors', cache: 'no-store' });
-                this.webMcpStatus = 'green-13';
-            } catch (e) { this.webMcpStatus = 'red-9'; }
+                // Heartbeat only checks service availability, not connection status
+                const resp = await fetch('http://localhost:3000/webmcp.js', { mode: 'no-cors', cache: 'no-store' });
+                // If socket is not connected, use heartbeat for basic status; if connected, keep green
+                if (!this.isSocketConnected && !this.isConnecting) {
+                    this.webMcpStatus = 'green-13';
+                }
+            } catch (e) { 
+                if (!this.isSocketConnected) this.webMcpStatus = 'red-9'; 
+            }
             try {
                 const resp = await fetch('/rest/s1/mce2/Registry');
                 this.dataStatus = resp.ok ? 'green-13' : 'red-9';
@@ -198,15 +241,17 @@ window.MceShell = {
         this.loadApps();
         this.checkHeartbeat();
         this.checkInterval = setInterval(() => this.checkHeartbeat(), 15000);
-        
-        // Listen for WebMCP Relay messages
+
+        // Listen for WebMCP events
         window.addEventListener('webmcp-message', this.onWebMcpMessage);
-        
+        window.addEventListener('webmcp-status', this.onWebMcpStatus);
+
         // Give webmcp.js a moment to initialize then auto-connect
         setTimeout(() => this.tryAutoConnect(), 1000);
     },
     beforeUnmount() {
         if (this.checkInterval) clearInterval(this.checkInterval);
         window.removeEventListener('webmcp-message', this.onWebMcpMessage);
+        window.removeEventListener('webmcp-status', this.onWebMcpStatus);
     }
 };

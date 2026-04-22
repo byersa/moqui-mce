@@ -5,7 +5,44 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
+// Force immediate, unbuffered writes to the terminal
+process.stderr.write("[MCE2-HOST] --- SYSTEM STARTING ---\n");
 
+// Overwrite console.error to ensure it flushes immediately
+const originalError = console.error;
+console.error = (...args) => {
+    process.stderr.write(args.join(' ') + '\n');
+};
+
+
+// Raw Debug: Listen to the pulse of the input stream
+process.stdin.on('data', (data) => {
+    try {
+        const raw = data.toString().trim();
+        const json = JSON.parse(raw);
+
+        // INTERCEPT: If this is our UI message, act on it manually
+        if (json.method === "notifications/message") {
+            const userText = json.params.text;
+            console.error(`[MCE2-HOST-RAW-IN] Intercepted Prompt: ${userText}`);
+
+            // Manual Trigger for verification
+            const tools = getTools();
+            console.error(`[MCE2-HOST] Manual Process: AI Bridge confirmed with ${tools.length} tools.`);
+
+            // Note: This is the exact entry point where we will later 
+            // trigger the AI to choose get_available_apps or render_component.
+        } else {
+            // Log other traffic (like SDK handshakes) so we stay informed
+            console.error(`[MCE2-HOST-RAW-IN] SDK Traffic: ${json.method}`);
+        }
+    } catch (e) {
+        // Ignore parsing errors for non-JSON traffic
+    }
+});
+
+// Force immediate log flushing
+process.stderr.write("[MCE2-HOST] Stream logic initialized...\n");
 // Standardize: MOQUI_BASE_URL now points directly to the isolated REST namespace
 const MOQUI_BASE_URL = process.env.MOQUI_BASE_URL || "http://localhost:8080/rest/s1/mce2";
 // WebMCP sidecar is typically on port 3000
@@ -19,48 +56,35 @@ const server = new Server(
     {
         capabilities: {
             tools: {},
+            // This tells the SDK we intend to handle notifications
+            notifications: {}
         },
     }
 );
+
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TOOLS_PATH = join(__dirname, "../config/mce2-tools.json");
+
+const getTools = () => {
+    try {
+        return JSON.parse(readFileSync(TOOLS_PATH, "utf8"));
+    } catch (e) {
+        console.error("Failed to load tools manifest:", e.message);
+        return [];
+    }
+};
 
 /**
  * 1. Tell the AI what tools are available
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-        tools: [
-            {
-                name: "get_available_apps",
-                description: "List all AI-ready components (apps) available in the Moqui instance.",
-                inputSchema: {
-                    type: "object",
-                    properties: {},
-                },
-            },
-            {
-                name: "render_component",
-                description: "Renders a Quasar/Vue component in the MCE2 user interface canvas.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        targetId: {
-                            type: "string",
-                            description: "The CSS ID of the target container (default: mce-canvas)"
-                        },
-                        componentJson: {
-                            type: "object",
-                            description: "The reactive JSON blueprint of the component to render."
-                        },
-                        mcpToken: {
-                            type: "string",
-                            description: "The security token for the WebMCP session."
-                        }
-                    },
-                    required: ["componentJson"]
-                },
-            },
-        ],
-    };
+    const tools = getTools();
+    console.error(`[MCE2-HOST] AI Handshake: Reporting ${tools.length} tools from manifest.`);
+    return { tools };
 });
 
 /**
@@ -69,9 +93,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
+    console.error(`[MCE2-HOST] AI Executing Tool: ${name}`);
+
     try {
         if (name === "get_available_apps") {
-            const response = await axios.get(`${MOQUI_BASE_URL}/AvailableApps`);
+            const url = `${MOQUI_BASE_URL}/AvailableApps`;
+            console.error(`[MCE2-HOST] Fetching components from: ${url}`);
+            const response = await axios.get(url);
             return {
                 content: [{
                     type: "text",
@@ -82,8 +110,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (name === "render_component") {
             const { componentJson, mcpToken, targetId = "mce-canvas" } = args;
-            
-            // Relay the component data to the WebMCP sidecar (WebSocket forwarder)
+
+            console.error(`[MCE2-HOST] Relaying render to Sidecar for target: ${targetId}`);
+
+            // Corrected axios call
             const relayResponse = await axios.post(WEBMCP_RELAY_URL, {
                 type: "render",
                 targetId: targetId,
@@ -101,7 +131,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         throw new Error(`Tool not found: ${name}`);
     } catch (error) {
-        console.error(`MCP Error (${name}):`, error.response?.data || error.message);
+        console.error(`[MCE2-HOST] MCP Error (${name}):`, error.response?.data || error.message);
         return {
             content: [{
                 type: "text",
@@ -116,9 +146,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
  * 3. Start using Stdio (Standard Input/Output)
  */
 async function main() {
+    console.error("[MCE2-HOST] Bootstrap Sequence Initiated...");
     const transport = new StdioServerTransport();
+
+    // Explicitly log the Moqui URL we are targeting
+    console.error(`[MCE2-HOST] Targeting Moqui at: ${MOQUI_BASE_URL}`);
+
     await server.connect(transport);
-    console.error("MCE2 MCP Host (Stdio) is running and grounded in mce2 namespace.");
+    console.error("[MCE2-HOST] MCP Server (Stdio) is officially LIFTED and CONNECTED.");
 }
 
 main().catch((error) => {

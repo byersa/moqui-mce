@@ -10,14 +10,17 @@ if (context.footer_scripts == null) context.footer_scripts = []
 // 1. Core External Libraries (Quasar 2 / Vue 3)
 html_stylesheets.add("https://unpkg.com/quasar@2.12.6/dist/quasar.prod.css")
 html_stylesheets.add("https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900")
-   html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons")
-   html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons+Outlined")
+html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons")
+html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons+Outlined")
 
+// Add to your stylesheet links if MceBootstrapper handles them
+//html_stylesheets.add("https://unpkg.com/@codesandbox/sandpack-client@2.13.0/dist/styles.css")
 
 footer_scripts.add("https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js")
 footer_scripts.add("https://unpkg.com/quasar@2.12.6/dist/quasar.umd.prod.js")
 // Add the WebMCP Client Relay with cache buster to ensure the latest bridge fixes are loaded
 footer_scripts.add("http://localhost:3000/webmcp.js?v=" + ts)
+//footer_scripts.add("https://unpkg.com/@codesandbox/sandpack-client@2.13.0/dist/index.browser.js")
 
 // 2. Resolve and include the MceShell component asset
 // We use the 'asset' transition defined in MceShell.xml

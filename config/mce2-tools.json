@@ -1,0 +1,32 @@
+[
+  {
+    "name": "get_available_apps",
+    "description": "List all AI-ready components (apps) available in the Moqui instance.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "render_component",
+    "description": "Renders a Quasar/Vue component in the MCE2 user interface canvas.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "targetId": {
+          "type": "string",
+          "description": "The CSS ID of the target container (default: mce-canvas)"
+        },
+        "componentJson": {
+          "type": "object",
+          "description": "The reactive JSON blueprint of the component to render."
+        },
+        "mcpToken": {
+          "type": "string",
+          "description": "The security token for the WebMCP session."
+        }
+      },
+      "required": ["componentJson"]
+    }
+  }
+]

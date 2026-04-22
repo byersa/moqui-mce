@@ -6,8 +6,8 @@
  * Auto-disconnects after 5 minutes of inactivity
  */
 
-if (typeof window.WebMCP === 'undefined') {
-    window.WebMCP = class WebMCP {
+if (typeof window.WebMcpClient === 'undefined') {
+    window.WebMcpClient = class WebMcpClient {
         constructor(options = {}) {
             // Options with defaults
             this.options = {
@@ -665,6 +665,30 @@ if (typeof window.WebMCP === 'undefined') {
             };
         });
 
+        // Architectural Rendering Tool
+        this.registerTool('render_component', 'Renders a Quasar/Vue component in the MCE2 user interface canvas', {
+            type: "object",
+            properties: {
+                componentJson: { type: "object", description: "The reactive JSON blueprint of the component to render." },
+                targetId: { type: "string", description: "Target CSS container (default: mce-canvas)" }
+            },
+            required: ["componentJson"]
+        }, (args) => {
+            const { componentJson, targetId = "mce-canvas" } = args;
+            console.info("[WebMCP] Tool Execution: render_component ->", targetId);
+            
+            // Emit a custom event that MceShell (or other listeners) can catch
+            window.dispatchEvent(new CustomEvent('webmcp-message', {
+                detail: {
+                    type: 'render',
+                    component: componentJson,
+                    targetId: targetId
+                }
+            }));
+            
+            return { success: true, rendered: true, targetId: targetId };
+        });
+
         // Navigation tool
         this.registerTool('navigate', 'Navigate to a different screen or path', {
             type: "object",
@@ -812,6 +836,11 @@ if (typeof window.WebMCP === 'undefined') {
 
         // Set new status
         statusIndicator.textContent = message || status;
+
+        // Dispatch global event for integration
+        window.dispatchEvent(new CustomEvent('webmcp-status', { 
+            detail: { status, message } 
+        }));
 
         // Apply styling based on status
         switch (status) {
@@ -1462,6 +1491,7 @@ if (typeof window.WebMCP === 'undefined') {
     _handleToolCall(message) {
         const { id, tool, arguments: args } = message;
 
+        console.info("[WebMCP] Tool Called by AI:", tool);
         console.log(`Tool call: ${tool} with args:`, args);
 
         if (!this.availableTools.has(tool)) {
@@ -2210,8 +2240,34 @@ if (typeof window.WebMCP === 'undefined') {
 if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
         if (!window.webmcp) {
-            window.webmcp = new window.WebMCP();
+            window.webmcp = new window.WebMcpClient();
             console.log('WebMCP initialized');
         }
     });
 }
+
+/**
+ * Global WebMCP API Interface
+ * Provides a clean boundary for external scripts to interact with the bridge.
+ */
+window.WebMCP = {
+    /**
+     * Send a direct command/message to the WebMCP sidecar.
+     */
+    send: (tool, params) => {
+        if (window.webmcp && window.webmcp.isConnected) {
+            window.webmcp._sendMessage({ type: 'userMessage', text: tool, parameters: params });
+        } else {
+            console.warn("[WebMCP] Cannot send: Bridge not connected.");
+        }
+    },
+    /**
+     * Trigger a locally registered browser tool.
+     */
+    callTool: (name, args) => {
+        if (window.webmcp) {
+            console.info("[WebMCP] Local Tool Call:", name);
+            return window.webmcp._handleToolCall({ tool: name, arguments: args });
+        }
+    }
+};

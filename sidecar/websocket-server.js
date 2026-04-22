@@ -24,6 +24,8 @@ import {
     configureMcpClient,
 } from './config.js';
 
+// Reference to the AI Host process
+let mcpHostProcess = null;
 let serverToken = SERVER_TOKEN;
 
 import { fileURLToPath } from 'url';
@@ -52,14 +54,14 @@ const httpServer = createServer(async (req, res) => {
     if (pathname && pathname !== '/' && !pathname.includes('..')) {
         const fileName = pathname.startsWith('/') ? pathname.slice(1) : pathname;
         const filePath = join(__dirname, fileName);
-        
+
         try {
             const content = await fs.readFile(filePath);
             let contentType = 'text/plain';
             if (fileName.endsWith('.js')) contentType = 'application/javascript';
             else if (fileName.endsWith('.json')) contentType = 'application/json';
             else if (fileName.endsWith('.css')) contentType = 'text/css';
-            
+
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(content);
             return;
@@ -238,10 +240,10 @@ wss.on('connection', (ws, req) => {
 
                 await loadAuthorizedTokens();
                 const authorizedToken = getToken(serverChannel);
-                
+
                 // MCE2 Development Pass: Allow simple 'yes' or UUID-format tokens if no server token is set or for local dev
                 const isDevToken = (token === 'yes' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token));
-                
+
                 if (token !== authorizedToken && !isDevToken) {
                     console.error('Invalid token provided');
                     ws.send(JSON.stringify({
@@ -371,9 +373,31 @@ wss.on('connection', (ws, req) => {
                 case 'samplingResponse':
                     handleSamplingResponse(data);
                     break;
-                    
+
                 case 'userMessage':
-                    // Relay user message from UI to MCP host
+                    console.error(`[Sidecar] UI Message: ${data.text}`);
+
+                    if (mcpHostProcess && mcpHostProcess.stdin) {
+                        // We use a structured notification that the MCP Host is now 
+                        // listening for via its 'RAW-IN' listener.
+                        const mcpMessage = JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "notifications/message",
+                            params: {
+                                text: data.text,
+                                mcpToken: data.mcpToken // Included for session context
+                            }
+                        }) + "\n"; // CRITICAL: The newline 'submits' the data
+
+                        mcpHostProcess.stdin.write(mcpMessage, (err) => {
+                            if (err) console.error(`[Sidecar] Pipe Error: ${err}`);
+                            else console.error("[Sidecar] Successfully pushed user prompt to Host.");
+                        });
+                    } else {
+                        console.error("[Sidecar] ERROR: Host process not found or pipe closed.");
+                    }
+
+                    // Keep the WebSocket relay so the UI knows the message was sent
                     sendNotification(ws, clientChannel, 'userMessage', data, true);
                     break;
 
@@ -1423,6 +1447,28 @@ Use --clean to remove all authorized tokens when you want to start fresh.
   `);
 };
 
+const startMcpHost = () => {
+    console.error("[Sidecar] Spawning MCE2 MCP Host Brain...");
+
+    const hostPath = join(__dirname, '../mcp-host/mcp-host.js');
+
+    // Spawn using fork to maintain a clean Node.js IPC/Stdio link
+    mcpHostProcess = fork(hostPath, [], {
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        env: { ...process.env, MOQUI_BASE_URL: "http://localhost:8080/rest/s1/mce2" }
+    });
+
+    // Pipe the Host's error logs into the Sidecar's log so we see them in sidecar.log
+    mcpHostProcess.stderr.on('data', (data) => {
+        process.stderr.write(`[MCE2-HOST-STDERR] ${data}`);
+    });
+
+    mcpHostProcess.on('exit', (code) => {
+        console.error(`[Sidecar] MCP Host Brain exited with code ${code}. Restarting in 5s...`);
+        setTimeout(startMcpHost, 5000);
+    });
+};
+
 const main = async () => {
     // Ensure the config directory exists
     await ensureConfigDir();
@@ -1579,14 +1625,20 @@ main().catch(error => {
     console.error('Error in main:', error);
     process.exit(1);
 }).then(() => {
-    // Handle starting MCP
+    // 1. Start the internal WebMCP relay (The Hand)
     if (CONFIG.startMCP) {
         setTimeout(() => {
-            console.error("Starting up MCP Server")
+            console.error("[Sidecar] Starting internal WebMCP relay...");
             runMcpServer(serverToken).catch((error) => {
-                console.error("Fatal error in main():", error);
+                console.error("Fatal error in internal relay:", error);
                 process.exit(1);
             });
         }, 100);
+    }
+
+    // 2. Start the primary MCE2 MCP Host (The Brain)
+    // We only do this if we aren't in a daemon-check exit
+    if (!process.argv.includes('--quit') && !process.argv.includes('--new')) {
+        setTimeout(startMcpHost, 500);
     }
 });

@@ -68,7 +68,16 @@
                 
                 <style>
                     [v-cloak] { display: none !important; }
-                    body { margin: 0; padding: 0; overflow: hidden; background-color: #eceff1; }
+                    html, body { margin: 0; padding: 0; overflow: hidden !important; background-color: #121212; height: 100vh !important; width: 100vw !important; }
+                    #q-app { 
+                        height: 100vh !important; 
+                        width: 100vw !important; 
+                        overflow: hidden !important; 
+                        position: fixed !important; 
+                        top: 0; left: 0; bottom: 0; right: 0;
+                        background: #1c262b;
+                    }
+                    .q-layout, .q-layout-container { height: 100% !important; max-height: 100vh !important; }
                     .letter-spacing-1 { letter-spacing: 1px; }
                     
                     /* Visual Parity with moqui-ai theme */
@@ -83,12 +92,15 @@
                     }
                     #mce-chat-input-area { 
                         z-index: 3005 !important; 
-                        position: relative; 
                         width: 100% !important;
-                        box-sizing: border-box !important;
-                        left: 0 !important;
-                        right: 0 !important;
+                        background: #263238 !important;
+                        border-top: 1px solid rgba(255,255,255,0.15) !important;
+                        box-shadow: 0 -4px 10px rgba(0,0,0,0.3) !important;
                     }
+
+                    /* Ensure flex context works properly in drawers */
+                    .q-drawer__content { display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+                    .mce-chat-history { flex-grow: 1 !important; height: auto !important; }
                     #mce-chat-input-area .q-field__control { 
                         margin-left: 0 !important; 
                         margin-right: 0 !important; 
