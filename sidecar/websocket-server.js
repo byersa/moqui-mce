@@ -1,9 +1,12 @@
-import * as fs from 'fs/promises';
 import { WebSocketServer, WebSocket } from 'ws';
+import fs from 'fs';
+import fsp from 'fs/promises';
 import { createServer } from 'http';
 import { parse } from 'url';
 import { fork } from 'child_process';
 import { runMcpServer } from './server.js';
+import { spawn } from 'child_process';
+import path from 'path';
 import {
     clearTokens,
     deleteToken, generateNewRegistrationToken,
@@ -24,12 +27,12 @@ import {
     configureMcpClient,
 } from './config.js';
 
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
+
 // Reference to the AI Host process
 let mcpHostProcess = null;
 let serverToken = SERVER_TOKEN;
-
-import { fileURLToPath } from 'url';
-import { join, dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -56,7 +59,7 @@ const httpServer = createServer(async (req, res) => {
         const filePath = join(__dirname, fileName);
 
         try {
-            const content = await fs.readFile(filePath);
+            const content = await fsp.readFile(filePath);
             let contentType = 'text/plain';
             if (fileName.endsWith('.js')) contentType = 'application/javascript';
             else if (fileName.endsWith('.json')) contentType = 'application/json';
@@ -1292,7 +1295,7 @@ async function isServerRunning() {
 
     try {
         // Check if PID file exists
-        const pidData = await fs.readFile(PID_FILE, 'utf8');
+        const pidData = await fsp.readFile(PID_FILE, 'utf8');
         const pid = parseInt(pidData.trim(), 10);
 
         // Check if process with this PID is running
@@ -1302,7 +1305,7 @@ async function isServerRunning() {
             return { running: true, pid };
         } catch (e) {
             // Process not running, remove stale PID file
-            await fs.unlink(PID_FILE);
+            await fsp.unlink(PID_FILE);
             return { running: false };
         }
     } catch (error) {
@@ -1314,7 +1317,7 @@ async function isServerRunning() {
 // Function to save current PID to file
 async function savePid() {
     try {
-        await fs.writeFile(PID_FILE, process.pid.toString(), 'utf8');
+        await fsp.writeFile(PID_FILE, process.pid.toString(), 'utf8');
         return true;
     } catch (error) {
         console.error('Error saving PID file:', error);
@@ -1447,27 +1450,39 @@ Use --clean to remove all authorized tokens when you want to start fresh.
   `);
 };
 
-const startMcpHost = () => {
-    console.error("[Sidecar] Spawning MCE2 MCP Host Brain...");
-
+function startHostProcess() {
+    // RUGGED: Anchor paths to the script location, not the user's current directory
     const hostPath = join(__dirname, '../mcp-host/mcp-host.js');
 
-    // Spawn using fork to maintain a clean Node.js IPC/Stdio link
-    mcpHostProcess = fork(hostPath, [], {
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-        env: { ...process.env, MOQUI_BASE_URL: "http://localhost:8080/rest/s1/mce2" }
+    // Anchor the log path to runtime/log relative to this component
+    const logPath = join(__dirname, '../log/mcp-sidecar.log');
+
+    // Ensure the directory exists before trying to write
+    const logDir = dirname(logPath);
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+    console.error(`[MCE2-SIDECAR] Spawning Host at: ${hostPath}`);
+    console.error(`[MCE2-SIDECAR] Logging to: ${logPath}`);
+
+    const host = spawn('node', [hostPath], {
+        stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    // Pipe the Host's error logs into the Sidecar's log so we see them in sidecar.log
-    mcpHostProcess.stderr.on('data', (data) => {
-        process.stderr.write(`[MCE2-HOST-STDERR] ${data}`);
+    host.stderr.on('data', (data) => {
+        logStream.write(`[HOST-LOG] ${new Date().toISOString()}: ${data}`);
     });
 
-    mcpHostProcess.on('exit', (code) => {
-        console.error(`[Sidecar] MCP Host Brain exited with code ${code}. Restarting in 5s...`);
-        setTimeout(startMcpHost, 5000);
+    host.on('exit', (code) => {
+        console.error(`[MCE2-SIDECAR] Host process exited with code ${code}.`);
+        logStream.write(`[SYSTEM] Host exited with code ${code}\n`);
     });
-};
+
+    return host;
+}
 
 const main = async () => {
     // Ensure the config directory exists
@@ -1594,7 +1609,7 @@ const main = async () => {
             console.error('HTTP server closed');
 
             // Remove PID file
-            fs.unlink(PID_FILE).catch(err => {
+            fsp.unlink(PID_FILE).catch(err => {
                 console.error('Error removing PID file:', err);
             });
 
@@ -1637,8 +1652,10 @@ main().catch(error => {
     }
 
     // 2. Start the primary MCE2 MCP Host (The Brain)
-    // We only do this if we aren't in a daemon-check exit
     if (!process.argv.includes('--quit') && !process.argv.includes('--new')) {
-        setTimeout(startMcpHost, 500);
+        setTimeout(() => {
+            // We use our new Rugged function and store the reference
+            mcpHostProcess = startHostProcess();
+        }, 500);
     }
 });

@@ -1,241 +1,138 @@
-import 'dotenv/config';
-import { GoogleGenAI } from "@google/genai"; // Fix: Changed from @google/generative-ai
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import dotenv from 'dotenv';
-import { createWriteStream } from 'fs';
-
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-    CallToolRequestSchema,
-    ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import axios from "axios";
+import { z } from "zod";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
-// Force an immediate write to the log file to prove connectivity
-process.stderr.write("[MCE2-HOST] --- LOG PIPE ESTABLISHED ---\n");
+// Get the directory of the current file (mcp-host.js)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Resolve the absolute path to the .env file in the same folder as this script
-const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: join(__dirname, '.env') });
-const TOOLS_PATH = join(__dirname, "../config/mce2-tools.json");
+// Load .env from the same folder as this script
+dotenv.config({ path: path.join(__dirname, '.env') });
 
+console.error("[MCE2-CHECK] Loading config from:", process.cwd());
+console.error("[MCE2-CHECK] API Key Found:", process.env.GEMINI_API_KEY ? "YES" : "NO");
+
+// Access your keys using process.env
 const apiKey = process.env.GEMINI_API_KEY;
+const moquiUrl = process.env.MOQUI_BASE_URL;
 
-// --- ROBUST LOGGING SETUP ---
-const logFilePath = join(__dirname, "mcp-host.log");
-const logStream = createWriteStream(logFilePath, { flags: 'a' });
-
-// This sends ALL logs to BOTH the terminal AND the file
-console.error = (...args) => {
-    const message = args.join(' ') + '\n';
-    process.stderr.write(message); // Write to Terminal
-    logStream.write(message);      // Write to Log File
-};
-
-console.error(`[MCE2-HOST] API Key Status: ${apiKey ? `LOADED (Starts with: ${apiKey.substring(0, 4)}...)` : 'NOT FOUND'}`);
-
-
-// The new SDK automatically detects GEMINI_API_KEY from your .env
-// The 2026 SDK requires explicit versioning for Gemini 3.1 models
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: { timeout: 120000 }
+if (!apiKey) {
+    console.error("[MCE2-HOST] FATAL: GEMINI_API_KEY is missing from .env");
+    process.exit(1);
+}
+/**
+ * 1. CONFIGURATION & IDENTITY
+ */
+const server = new McpServer({
+    name: "nursing-home-management-host",
+    version: "2.0.0",
 });
 
-const modelName = "gemini-2.0-flash-lite";
+// Note: In a real Orem setup, use process.env.GEMINI_API_KEY
+const GEMINI_API_KEY = "YOUR_TIER_1_KEY_HERE";
 
-// Force immediate, unbuffered writes to the terminal
-process.stderr.write("[MCE2-HOST] --- SYSTEM STARTING ---\n");
-
-// Overwrite console.error to ensure it flushes immediately
-const originalError = console.error;
-
-process.stderr.write("[MCE2-HOST] --- LOGGING HANDSHAKE ESTABLISHED ---\n");
-console.error("[MCE2-HOST] --- LOGGING HANDSHAKE ESTABLISHED (console.error) ---\n");
-
-// --- 1. GLOBAL STATE ---
-const CACHE_TTL_SECONDS = 3600; // 1 Hour (Standard for a coding session)
-
-const getTools = () => {
-    try {
-        return JSON.parse(readFileSync(TOOLS_PATH, "utf8"));
-    } catch (e) {
-        console.error("Failed to load tools manifest:", e.message);
-        return [];
-    }
-};
-
-
-// Raw Debug: Listen to the pulse of the input stream
-// At the top of your file, ensure the 120s timeout is set
-process.stdin.on('data', async (data) => {
-    let userText = "";
-    try {
-        const raw = data.toString().trim();
-        const json = JSON.parse(raw);
-
-        // 1. LOUD PULSE: Print every single byte received to the log
-        console.error(`[RAW-INBOUND] Received ${raw.length} bytes.`);
-
-        // 2. Content Peek: See the first 50 characters
-        console.error(`[RAW-CONTENT] ${raw.substring(0, 50)}...`);
-
-        if (json.method === "notifications/message") {
-            userText = json.params?.text || "";
-            console.error(`[MCE2-HOST] Routing to Gemini (v1beta): ${userText}`);
-            try {
-                const rawTools = getTools();
-                const currentGeminiTools = rawTools.map(tool => ({
-                    name: tool.name,
-                    description: tool.description,
-                    parameters: tool.inputSchema // Renaming for Gemini
-                }));
-
-                const result = await ai.models.generateContent({
-                    model: modelName,
-                    systemInstruction: "You are the AI UI Controller for the Nursing Home Management System. Call tools immediately.",
-                    tools: [{ functionDeclarations: currentGeminiTools }],
-                    contents: [{
-                        role: 'user',
-                        parts: [{ text: userText }]
-                    }],
-                    toolConfig: { functionCallingConfig: { mode: "ANY" } }
-                });
-
-                const functionCalls = result.response.functionCalls();
-
-                if (functionCalls && functionCalls.length > 0) {
-                    for (const call of functionCalls) {
-                        console.error(`[MCE2-HOST] SUCCESS: AI triggered Tool: ${call.name}`);
-                        // This log MUST appear in your mcp-sidecar.log if the AI actually called the tool
-                    }
-                } else {
-                    // If this log appears, the AI didn't feel it needed a tool
-                    console.error("[MCE2-HOST] AI responded with text instead of a tool call.");
-                    console.error(`[MCE2-HOST] AI Text: ${result.response.text()}`);
-                }
-
-            } catch (err) {
-                if (err.message.includes("404")) {
-                    console.error(`[MCE2-HOST] Model ID ${modelName} rejected by v1beta. Please check mcp-host.js line 15.`);
-                } else if (err.message.includes("429")) {
-                    console.error("[MCE2-HOST] Quota exhausted. Switch to gemini-2.0-flash-lite or gemini-pro-latest.");
-                } else {
-                    console.error(`[MCE2-HOST] Gemini SDK Error: ${err.message}`);
-                }
-            }
-        }
-    } catch (e) {
-        // Keep the stdin pipe open for Moqui traffic
-    }
-});
-
-// Force immediate log flushing
-process.stderr.write("[MCE2-HOST] Stream logic initialized...\n");
-// Standardize: MOQUI_BASE_URL now points directly to the isolated REST namespace
-const MOQUI_BASE_URL = process.env.MOQUI_BASE_URL || "http://localhost:8080/rest/s1/mce2";
-// WebMCP sidecar is typically on port 3000
-const WEBMCP_RELAY_URL = process.env.WEBMCP_RELAY_URL || "http://localhost:3000/relay";
-
-const server = new Server(
+/**
+ * 2. TOOL REGISTRATION: WEBMCP (UI)
+ * These tools send commands back to the Sidecar to update the browser.
+ */
+server.tool(
+    "w_render_component",
+    "Renders a Quasar/Vue component in the Nursing Home UI",
     {
-        name: "mce2-mcp-host",
-        version: "1.1.0",
+        componentName: z.string().describe("The name of the component (e.g., PatientCard)"),
+        props: z.record(z.any()).optional().describe("Data for the component"),
     },
-    {
-        capabilities: {
-            tools: {},
-            // This tells the SDK we intend to handle notifications
-            notifications: {}
-        },
-    }
-);
+    async ({ componentName, props }) => {
+        // This log goes to stderr, so it won't break the JSON pipe!
+        console.error(`[MCE2-HOST] AI requested render: ${componentName}`);
 
-
-
-
-/**
- * 1. Tell the AI what tools are available
- */
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools = getTools();
-    console.error(`[MCE2-HOST] AI Handshake: Reporting ${tools.length} tools from manifest.`);
-    return { tools };
-});
-
-/**
- * 2. Handle the actual tool execution
- */
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-
-    console.error(`[MCE2-HOST] AI Executing Tool: ${name}`);
-
-    try {
-        if (name === "get_available_apps") {
-            const url = `${MOQUI_BASE_URL}/AvailableApps`;
-            console.error(`[MCE2-HOST] Fetching components from: ${url}`);
-            const response = await axios.get(url);
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(response.data, null, 2),
-                }],
-            };
-        }
-
-        if (name === "render_component") {
-            const { componentJson, mcpToken, targetId = "mce-canvas" } = args;
-
-            console.error(`[MCE2-HOST] Relaying render to Sidecar for target: ${targetId}`);
-
-            // Corrected axios call
-            const relayResponse = await axios.post(WEBMCP_RELAY_URL, {
-                type: "render",
-                targetId: targetId,
-                component: componentJson,
-                mcpToken: mcpToken
-            });
-
-            return {
-                content: [{
-                    type: "text",
-                    text: `Successfully relayed component to MCE2 Canvas. Sidecar response: ${relayResponse.statusText}`,
-                }],
-            };
-        }
-
-        throw new Error(`Tool not found: ${name}`);
-    } catch (error) {
-        console.error(`[MCE2-HOST] MCP Error (${name}):`, error.response?.data || error.message);
         return {
             content: [{
                 type: "text",
-                text: `Error: ${error.message}`,
-            }],
-            isError: true,
+                text: JSON.stringify({ action: "render", componentName, props })
+            }]
         };
     }
-});
+);
 
 /**
- * 3. Start using Stdio (Standard Input/Output)
+ * 3. TOOL REGISTRATION: MOQUI (DATA)
+ * These tools talk directly to your Moqui server via REST.
  */
-async function main() {
-    console.error("[MCE2-HOST] Bootstrap Sequence Initiated...");
-    const transport = new StdioServerTransport();
+server.tool(
+    "m_entity_find",
+    "Queries the Moqui database for Nursing Home records (Mantle UDM)",
+    {
+        entityName: z.string().describe("The Mantle entity to query (e.g., mantle.party.Party)"),
+        filter: z.record(z.any()).describe("The search criteria"),
+    },
+    async ({ entityName, filter }) => {
+        try {
+            console.error(`[MCE2-HOST] Querying Moqui entity: ${entityName}`);
 
-    // Explicitly log the Moqui URL we are targeting
-    console.error(`[MCE2-HOST] Targeting Moqui at: ${MOQUI_BASE_URL}`);
+            // Moqui Entity REST path: /entities/{entityName}
+            const data = await callMoqui(`entities/${entityName}`, 'GET', filter);
 
-    await server.connect(transport);
-    console.error("[MCE2-HOST] MCP Server (Stdio) is officially LIFTED and CONNECTED.");
+            return {
+                content: [{
+                    type: "text",
+                    text: `Found ${data.length || 0} records for ${entityName}: ${JSON.stringify(data)}`
+                }]
+            };
+        } catch (error) {
+            console.error(`[MCE2-HOST] Moqui Query Failed:`, error.message);
+            return {
+                content: [{ type: "text", text: `Error: Could not retrieve ${entityName}.` }],
+                isError: true
+            };
+        }
+    }
+);
+
+/**
+ * MOQUI REST HELPER
+ * Encapsulates authentication and path logic for Mantle UDM.
+ */
+async function callMoqui(endpoint, method = 'GET', body = null) {
+    const auth = Buffer.from(`${process.env.MOQUI_USERNAME}:${process.env.MOQUI_PASSWORD}`).toString('base64');
+
+    const url = `${process.env.MOQUI_BASE_URL}/rest/s1/${endpoint}`;
+
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : null
+    });
+
+    if (!response.ok) {
+        throw new Error(`Moqui error ${response.status}: ${await response.text()}`);
+    }
+
+    return await response.json();
 }
 
-main().catch((error) => {
-    console.error("Fatal error:", error);
+/**
+ * 4. LIFECYCLE & TRANSPORT
+ */
+async function main() {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("[MCE2-HOST] Modern Host is running. Stdin/Stdout reserved for MCP.");
+}
+
+// THE SELF-DESTRUCT: Kills the host if the Sidecar dies
+process.stdin.on('close', () => {
+    console.error("[MCE2-HOST] Sidecar connection lost. Self-destructing...");
+    process.exit(0);
+});
+
+main().catch((err) => {
+    console.error("[MCE2-HOST] Fatal Error:", err);
     process.exit(1);
 });

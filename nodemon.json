@@ -1,0 +1,14 @@
+{
+    "watch": [
+        "sidecar/",
+        "mcp-host/",
+        ".env"
+    ],
+    "ext": "js,json,env",
+    "ignore": [
+        "../../log/*.log",
+        "node_modules/"
+    ],
+    "delay": "1000",
+    "exec": "node sidecar/websocket-server.js --foreground --port 3000"
+}
