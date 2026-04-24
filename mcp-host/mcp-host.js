@@ -1,3 +1,11 @@
+import 'dotenv/config';
+import { GoogleGenAI } from "@google/genai"; // Fix: Changed from @google/generative-ai
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import dotenv from 'dotenv';
+import { createWriteStream } from 'fs';
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -5,39 +13,123 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
+
+// Force an immediate write to the log file to prove connectivity
+process.stderr.write("[MCE2-HOST] --- LOG PIPE ESTABLISHED ---\n");
+
+// Resolve the absolute path to the .env file in the same folder as this script
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: join(__dirname, '.env') });
+const TOOLS_PATH = join(__dirname, "../config/mce2-tools.json");
+
+const apiKey = process.env.GEMINI_API_KEY;
+
+// --- ROBUST LOGGING SETUP ---
+const logFilePath = join(__dirname, "mcp-host.log");
+const logStream = createWriteStream(logFilePath, { flags: 'a' });
+
+// This sends ALL logs to BOTH the terminal AND the file
+console.error = (...args) => {
+    const message = args.join(' ') + '\n';
+    process.stderr.write(message); // Write to Terminal
+    logStream.write(message);      // Write to Log File
+};
+
+console.error(`[MCE2-HOST] API Key Status: ${apiKey ? `LOADED (Starts with: ${apiKey.substring(0, 4)}...)` : 'NOT FOUND'}`);
+
+
+// The new SDK automatically detects GEMINI_API_KEY from your .env
+// The 2026 SDK requires explicit versioning for Gemini 3.1 models
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: { timeout: 120000 }
+});
+
+const modelName = "gemini-2.0-flash-lite";
+
 // Force immediate, unbuffered writes to the terminal
 process.stderr.write("[MCE2-HOST] --- SYSTEM STARTING ---\n");
 
 // Overwrite console.error to ensure it flushes immediately
 const originalError = console.error;
-console.error = (...args) => {
-    process.stderr.write(args.join(' ') + '\n');
+
+process.stderr.write("[MCE2-HOST] --- LOGGING HANDSHAKE ESTABLISHED ---\n");
+console.error("[MCE2-HOST] --- LOGGING HANDSHAKE ESTABLISHED (console.error) ---\n");
+
+// --- 1. GLOBAL STATE ---
+const CACHE_TTL_SECONDS = 3600; // 1 Hour (Standard for a coding session)
+
+const getTools = () => {
+    try {
+        return JSON.parse(readFileSync(TOOLS_PATH, "utf8"));
+    } catch (e) {
+        console.error("Failed to load tools manifest:", e.message);
+        return [];
+    }
 };
 
 
 // Raw Debug: Listen to the pulse of the input stream
-process.stdin.on('data', (data) => {
+// At the top of your file, ensure the 120s timeout is set
+process.stdin.on('data', async (data) => {
+    let userText = "";
     try {
         const raw = data.toString().trim();
         const json = JSON.parse(raw);
 
-        // INTERCEPT: If this is our UI message, act on it manually
+        // 1. LOUD PULSE: Print every single byte received to the log
+        console.error(`[RAW-INBOUND] Received ${raw.length} bytes.`);
+
+        // 2. Content Peek: See the first 50 characters
+        console.error(`[RAW-CONTENT] ${raw.substring(0, 50)}...`);
+
         if (json.method === "notifications/message") {
-            const userText = json.params.text;
-            console.error(`[MCE2-HOST-RAW-IN] Intercepted Prompt: ${userText}`);
+            userText = json.params?.text || "";
+            console.error(`[MCE2-HOST] Routing to Gemini (v1beta): ${userText}`);
+            try {
+                const rawTools = getTools();
+                const currentGeminiTools = rawTools.map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: tool.inputSchema // Renaming for Gemini
+                }));
 
-            // Manual Trigger for verification
-            const tools = getTools();
-            console.error(`[MCE2-HOST] Manual Process: AI Bridge confirmed with ${tools.length} tools.`);
+                const result = await ai.models.generateContent({
+                    model: modelName,
+                    systemInstruction: "You are the AI UI Controller for the Nursing Home Management System. Call tools immediately.",
+                    tools: [{ functionDeclarations: currentGeminiTools }],
+                    contents: [{
+                        role: 'user',
+                        parts: [{ text: userText }]
+                    }],
+                    toolConfig: { functionCallingConfig: { mode: "ANY" } }
+                });
 
-            // Note: This is the exact entry point where we will later 
-            // trigger the AI to choose get_available_apps or render_component.
-        } else {
-            // Log other traffic (like SDK handshakes) so we stay informed
-            console.error(`[MCE2-HOST-RAW-IN] SDK Traffic: ${json.method}`);
+                const functionCalls = result.response.functionCalls();
+
+                if (functionCalls && functionCalls.length > 0) {
+                    for (const call of functionCalls) {
+                        console.error(`[MCE2-HOST] SUCCESS: AI triggered Tool: ${call.name}`);
+                        // This log MUST appear in your mcp-sidecar.log if the AI actually called the tool
+                    }
+                } else {
+                    // If this log appears, the AI didn't feel it needed a tool
+                    console.error("[MCE2-HOST] AI responded with text instead of a tool call.");
+                    console.error(`[MCE2-HOST] AI Text: ${result.response.text()}`);
+                }
+
+            } catch (err) {
+                if (err.message.includes("404")) {
+                    console.error(`[MCE2-HOST] Model ID ${modelName} rejected by v1beta. Please check mcp-host.js line 15.`);
+                } else if (err.message.includes("429")) {
+                    console.error("[MCE2-HOST] Quota exhausted. Switch to gemini-2.0-flash-lite or gemini-pro-latest.");
+                } else {
+                    console.error(`[MCE2-HOST] Gemini SDK Error: ${err.message}`);
+                }
+            }
         }
     } catch (e) {
-        // Ignore parsing errors for non-JSON traffic
+        // Keep the stdin pipe open for Moqui traffic
     }
 });
 
@@ -62,21 +154,8 @@ const server = new Server(
     }
 );
 
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TOOLS_PATH = join(__dirname, "../config/mce2-tools.json");
 
-const getTools = () => {
-    try {
-        return JSON.parse(readFileSync(TOOLS_PATH, "utf8"));
-    } catch (e) {
-        console.error("Failed to load tools manifest:", e.message);
-        return [];
-    }
-};
 
 /**
  * 1. Tell the AI what tools are available
