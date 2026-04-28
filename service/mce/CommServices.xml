@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="send" noun="ExternalNotification" authenticate="true">
+        <description>Generic utility to handle delivery of notifications to external recipients.</description>
+        <in-parameters>
+            <parameter name="recipients" type="List" required="true">
+                <description>List of recipient identifiers (emails, phone numbers, etc). Handled as PHI.</description>
+            </parameter>
+            <parameter name="message" type="String" required="true"/>
+            <parameter name="subject" type="String"/>
+        </in-parameters>
+        <actions>
+            <script><![CDATA[
+                // Implementation for actual delivery (Email/SMS/Push) would go here.
+                // For now, we log the notification request.
+                ec.logger.info("MCE Notification Dispatch: [${subject}] ${message} -> Recipients: ${recipients.size()}")
+                
+                // Any logic handling contact info must ensure encryption is enabled at the entity level
+                // as per HIPAA compliance requirements.
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

@@ -4,14 +4,16 @@
   "description": "MCE2 MCP Server for Moqui",
   "main": "mcp-host.js",
   "scripts": {
-    "start": "node mcp-host.js"
+    "start": "npx nodemon --watch . --ext js,json,.env mcp-host.js"
   },
   "type": "module",
   "dependencies": {
     "@google/genai": "^1.50.1",
+    "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.15.0",
     "dotenv": "^17.4.2",
+    "eventsource": "^4.1.0",
     "zod": "^4.3.6"
   }
 }
