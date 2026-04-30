@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="list" noun="Tools" authenticate="false" allow-remote="true">
+        <description>Tool Discovery Wrapper: aggregates standard screen tools and registered library tools.</description>
+        <in-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="cursor"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="result" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.context.ExecutionContext
+                import groovy.json.JsonSlurper
+                ExecutionContext ec = context.ec
+                
+                def categories = []
+                
+                // 1. Load Design Palette (Publicly available macros)
+                try {
+                    def registryFile = new File(ec.factory.runtimePath, "component/moqui-mce/registry/ui-macros.json")
+                    if (registryFile.exists()) {
+                        def designData = new JsonSlurper().parse(registryFile)
+                        def allItems = []
+                        // Flatten existing categories into one "Design Palette" for the sidecar
+                        designData.categories?.each { cat ->
+                            cat.items?.each { it.category = cat.name; allItems.add(it) }
+                        }
+                        categories.add([name: "Design Palette", items: allItems])
+                    }
+                } catch (Exception e) {
+                    ec.logger.error("Error loading design palette: ${e.message}")
+                }
+                
+                // 2. Load Authorized MCP Tools
+                def allTools = []
+                // Internal permission check: skip clinical tools if not authenticated (HIPAA Safety)
+                if (ec.user.userId) {
+                    // Get standard screen-based tools from McpServices
+                    def standardResult = ec.service.sync().name("McpServices.list#Tools")
+                        .parameters(context).call()
+                    allTools = standardResult.result?.tools ?: []
+                    allTools.each { if (it.priority == null) it.priority = 100 }
+                    
+                    // Query enabled libraries for the current user
+                    def userGroupIds = ec.user.getUserGroupIdSet()
+                    def libraries = ec.entity.find("moqui.mcp.McpToolLibrary")
+                        .condition("isEnabled", "Y")
+                        .condition("userGroupId", "in", userGroupIds)
+                        .orderBy("priority")
+                        .list()
+                    
+                    for (def library in libraries) {
+                        try {
+                            def libResult = ec.service.sync().name(library.serviceName)
+                                .parameters([sessionId: sessionId]).call()
+                            def libTools = libResult.tools ?: []
+                            libTools.each { it.priority = library.priority ?: 99 }
+                            allTools.addAll(libTools)
+                        } catch (Exception e) {
+                            ec.logger.error("Error fetching tools from library ${library.libraryId}: ${e.message}")
+                        }
+                    }
+                    allTools.sort { it.priority }
+                    
+                    if (allTools) {
+                        // Format tools for the webmcp.js Registry display
+                        def toolItems = allTools.collect { tool ->
+                            [
+                                label: tool.title ?: tool.name,
+                                icon: "build",
+                                command: "Help me use tool ${tool.name}",
+                                description: tool.description,
+                                toolName: tool.name
+                            ]
+                        }
+                        categories.add([name: "Authorized Tools", items: toolItems])
+                    }
+                }
+                
+                // Sort aggregated tools for MCP compatibility
+                allTools.sort { it.priority }
+                
+                // Return both formatted registry and raw tool list
+                result = [
+                    registry: [categories: categories],
+                    tools: allTools
+                ]
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="mcp" noun="ToolsCall" authenticate="true" allow-remote="true">
+        <description>Tool Call Router: handles mcp#ToolsCall by routing to registered libraries based on prefix.</description>
+        <in-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="name" required="true"/>
+            <parameter name="arguments" type="Map"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="result" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.context.ExecutionContext
+                ExecutionContext ec = context.ec
+                
+                // 1. Inspect the name of the incoming tool call for a matching prefix
+                def libraries = ec.entity.find("moqui.mcp.McpToolLibrary")
+                    .condition("isEnabled", "Y")
+                    .list()
+                
+                def matchingLib = libraries.find { library -> 
+                    library.prefix && name.startsWith(library.prefix) 
+                }
+                
+                if (matchingLib) {
+                    // 2. If the name matches a registered library prefix, route directly to that library's execution service
+                    def callResult = ec.service.sync().name(matchingLib.serviceName)
+                        .parameters([name: name, arguments: arguments, sessionId: sessionId]).call()
+                    result = callResult.result ?: callResult
+                } else {
+                    // 3. If no prefix matches, default to the standard McpServices.mcp#ToolsCall logic
+                    def callResult = ec.service.sync().name("McpServices.mcp#ToolsCall")
+                        .parameters(context).call()
+                    result = callResult.result ?: callResult
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

@@ -10,7 +10,7 @@
 
     <resource name="Registry">
         <method type="get" require-authentication="false">
-            <service name="mce2.SessionServices.get#Registry"/>
+            <service name="moqui.mcp.MceServices.list#Tools"/>
         </method>
     </resource>
 

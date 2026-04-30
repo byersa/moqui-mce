@@ -35,7 +35,7 @@
 
     <entity entity-name="McpToolLibrary" package="moqui.mcp" enable-audit-log="true">
         <field name="libraryId" type="id" is-pk="true"/>
-        <field name="description" type="description"/>
+        <field name="description" type="text-medium"/>
         <field name="serviceName" type="text-medium"/>
         <field name="prefix" type="id"/>
         <field name="userGroupId" type="id"/>
