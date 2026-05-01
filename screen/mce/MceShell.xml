@@ -19,6 +19,11 @@
         <set field="isDesignMode" from="tokenOut.isDesignMode ?: 'N'"/>
         
         <script location="component://moqui-mce/script/MceBootstrapper.groovy"/>
+
+        <!--
+        <service-call name="mce2.SessionServices.start#NodeServer" 
+                  in-map="[connectionToken:connectionToken]"/>
+                  -->
     </actions>
 
     <widgets>

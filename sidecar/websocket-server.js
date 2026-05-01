@@ -1451,34 +1451,42 @@ Use --clean to remove all authorized tokens when you want to start fresh.
 };
 
 function startHostProcess() {
-    // RUGGED: Anchor paths to the script location, not the user's current directory
+    // RUGGED: Anchor paths to the script location
     const hostPath = join(__dirname, '../mcp-host/mcp-host.js');
 
-    // Anchor the log path to runtime/log relative to this component
-    const logPath = join(__dirname, '../log/mcp-sidecar.log');
+    // Create a dedicated log for the Host process to keep sidecar.log clean
+    const sidecarLogPath = join(__dirname, '../log/mcp-sidecar.log');
+    const hostLogPath = join(__dirname, '../log/mcp-host.log');
 
-    // Ensure the directory exists before trying to write
-    const logDir = dirname(logPath);
+    // Ensure the log directory exists
+    const logDir = dirname(sidecarLogPath);
     if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
     }
 
-    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+    // Sidecar log for relay events
+    const sidecarLogStream = fs.createWriteStream(sidecarLogPath, { flags: 'a' });
+    // Host log for the AI's internal stdout/stderr
+    const hostLogStream = fs.createWriteStream(hostLogPath, { flags: 'a' });
 
     console.error(`[MCE2-SIDECAR] Spawning Host at: ${hostPath}`);
-    console.error(`[MCE2-SIDECAR] Logging to: ${logPath}`);
+    console.error(`[MCE2-SIDECAR] Host internal logs: ${hostLogPath}`);
 
     const host = spawn('node', [hostPath], {
+        // stdin: pipe (for commands), stdout/stderr: directed to file
         stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    host.stderr.on('data', (data) => {
-        logStream.write(`[HOST-LOG] ${new Date().toISOString()}: ${data}`);
-    });
+    // Directly pipe the host's output to the host-specific log file
+    host.stdout.pipe(hostLogStream);
+    host.stderr.pipe(hostLogStream);
 
+    // Still log system-level exit events to the sidecar log for visibility
     host.on('exit', (code) => {
+        const exitMsg = `[SYSTEM] Host process ${hostPath} exited with code ${code}\n`;
         console.error(`[MCE2-SIDECAR] Host process exited with code ${code}.`);
-        logStream.write(`[SYSTEM] Host exited with code ${code}\n`);
+        sidecarLogStream.write(exitMsg);
+        hostLogStream.write(exitMsg);
     });
 
     return host;

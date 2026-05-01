@@ -65,23 +65,23 @@ if (!webmcpSidecarDir.exists()) {
 }
 
 // 2. The Primary MCP Host (Stdio protocol for AI agents)
-if (mcpHostDir.exists()) {
-     try {
-        ec.logger.info("Starting MCE2 primary MCP Host in ${mcpHostDir.absolutePath}...")
-        File hostLog = new File(mcpHostDir, "mcp-host.log")
-        ProcessBuilder pb = new ProcessBuilder("node", "mcp-host.js")
-        pb.directory(mcpHostDir)
-        pb.redirectErrorStream(true)
-        pb.redirectOutput(ProcessBuilder.Redirect.appendTo(hostLog))
-        //pb.inheritIO()
-        Process proc = pb.start()
-        
-        if (proc.isAlive()) {
-            ec.logger.info("MCE2 primary MCP Host process started successfully (PID: ${proc.pid()}).")
-        }
-    } catch (Exception e) {
-        ec.logger.error("Failed to start MCE2 primary MCP Host", e)
-    }
-}
+//if (mcpHostDir.exists()) {
+//     try {
+//        ec.logger.info("Starting MCE2 primary MCP Host in ${mcpHostDir.absolutePath}...")
+//        File hostLog = new File(mcpHostDir, "mcp-host.log")
+//        ProcessBuilder pb = new ProcessBuilder("node", "mcp-host.js")
+//        pb.directory(mcpHostDir)
+//        pb.redirectErrorStream(true)
+//        pb.redirectOutput(ProcessBuilder.Redirect.appendTo(hostLog))
+//        //pb.inheritIO()
+//        Process proc = pb.start()
+//        
+//        if (proc.isAlive()) {
+//            ec.logger.info("MCE2 primary MCP Host process started successfully (PID: ${proc.pid()}).")
+//        }
+//    } catch (Exception e) {
+//        ec.logger.error("Failed to start MCE2 primary MCP Host", e)
+//    }
+//}
 
 return context

@@ -47,11 +47,13 @@
                     
                     // Query enabled libraries for the current user
                     def userGroupIds = ec.user.getUserGroupIdSet()
+                    ec.logger.info("LIST#TOOLS, userGroupIds: " + userGroupIds)
                     def libraries = ec.entity.find("moqui.mcp.McpToolLibrary")
                         .condition("isEnabled", "Y")
                         .condition("userGroupId", "in", userGroupIds)
                         .orderBy("priority")
                         .list()
+                    ec.logger.info("LIST#TOOLS, libraries: " + libraries)
                     
                     for (def library in libraries) {
                         try {
