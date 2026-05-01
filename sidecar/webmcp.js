@@ -1782,8 +1782,7 @@ if (typeof window.WebMcpClient === 'undefined') {
          * @param {Object} message - The message object to send
          */
         _sendMessage(message) {
-            console.log(`webmcp: _sendMessage: ${message}`);
-            debugger;
+            console.log(`webmcp: _sendMessage: ${JSON.stringify(message)}`);
             if (!this.isConnected || !this.socket) {
                 console.error('Cannot send message: not connected');
                 return;

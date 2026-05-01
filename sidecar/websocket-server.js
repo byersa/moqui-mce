@@ -379,6 +379,8 @@ wss.on('connection', (ws, req) => {
 
                 case 'userMessage':
                     console.error(`[Sidecar] UI Message: ${data.text}`);
+                    console.error(`[Sidecar] mcpHostProcess: ${mcpHostProcess}`);
+                    console.error(`[Sidecar] mcpHostProcess.stdin: ${mcpHostProcess.stdin}`);
 
                     if (mcpHostProcess && mcpHostProcess.stdin) {
                         // We use a structured notification that the MCP Host is now 
@@ -1355,18 +1357,32 @@ async function daemonize() {
 
 const parseArgs = async () => {
     const args = process.argv.slice(2);
-    let port = 4797; // Default port
-    let host = '0.0.0.0'; // Default host to listen on all interfaces
+    let port = 4797;
+    let host = '0.0.0.0';
     let quit = false;
     let newToken = false;
+
+    // RUGGED DEFAULTS: 
+    // 1. startMCP: false (Prevents relay from stealing the Host pipe)
+    // 2. daemon: false   (Prevents "Ghost" background processes)
     let startMCP = false;
+    let daemon = false;
+
     let docker = false;
     let cleanTokens = false;
     let encodedPair = null;
-    let daemon = true; // Default to daemonize
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
+
+        // ... (Keep existing if/else logic so you can still 
+        // explicitly turn these on with --mcp or --daemon) ...
+
+        if (arg === '-f' || arg === '--foreground') {
+            daemon = false;
+        } else if (arg === '-m' || arg === '--mcp') {
+            startMCP = true;
+        }
 
         if (arg === '-h' || arg === '--help') {
             showHelp();
@@ -1454,6 +1470,9 @@ function startHostProcess() {
     // RUGGED: Anchor paths to the script location
     const hostPath = join(__dirname, '../mcp-host/mcp-host.js');
 
+    // RUGGED DEBUG: This will prove we are running the NEW code
+    console.error(`\n[TRACING-v2] Spawning Host from: ${hostPath}`);
+
     // Create a dedicated log for the Host process to keep sidecar.log clean
     const sidecarLogPath = join(__dirname, '../log/mcp-sidecar.log');
     const hostLogPath = join(__dirname, '../log/mcp-host.log');
@@ -1477,9 +1496,6 @@ function startHostProcess() {
         stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    // Directly pipe the host's output to the host-specific log file
-    host.stdout.pipe(hostLogStream);
-    host.stderr.pipe(hostLogStream);
 
     // Still log system-level exit events to the sidecar log for visibility
     host.on('exit', (code) => {
@@ -1487,6 +1503,48 @@ function startHostProcess() {
         console.error(`[MCE2-SIDECAR] Host process exited with code ${code}.`);
         sidecarLogStream.write(exitMsg);
         hostLogStream.write(exitMsg);
+    });
+
+    host.stdout.on('data', (data) => {
+        const rawOutput = data.toString();
+        hostLogStream.write(data);
+
+        // Split by newline to handle multiple JSON objects in one chunk
+        const lines = rawOutput.split('\n');
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            // Extract JSON from any surrounding "graffiti"
+            const start = line.indexOf('{');
+            const end = line.lastIndexOf('}');
+
+            if (start !== -1 && end !== -1 && end > start) {
+                const jsonCandidate = line.substring(start, end + 1);
+                try {
+                    const message = JSON.parse(jsonCandidate);
+
+                    if (message.method === "callTool") {
+                        console.error(`[PIPE-WATCH] DIRECT RELAY: ${message.params.tool}`);
+                        sendNotification(null, MCP_PATH, 'callTool', message.params, true);
+                    }
+                    else if (message.method === "notifications/message") {
+                        console.error(`[PIPE-WATCH] AI ACK RELAY: ${message.params.text}`);
+                        // Relay to UI
+                        sendNotification(null, MCP_PATH, 'aiResponse', { text: message.params.text }, true);
+                    }
+                } catch (e) {
+                    // Not valid JSON for this specific line, move to next
+                }
+            }
+        }
+    });
+
+    // Do the same for stderr to keep your logs complete
+    host.stderr.on('data', (data) => {
+        hostLogStream.write(data);
+        console.error(`[Host Error]: ${data.toString().trim()}`);
     });
 
     return host;
