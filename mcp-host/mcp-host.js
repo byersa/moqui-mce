@@ -90,7 +90,7 @@ process.stdin.on('data', async (data) => {
                 }
             }) + "\n";
 
-            process.stdout.write(toolCall); // Send back up the pipe!
+            process.stdout.write(toolCall); // Send back up the pipe to websocket, which receives it on !
 
             // 2. Send an Acknowledgement (The Feedback)
             // We send this as a standard message so the UI can display it

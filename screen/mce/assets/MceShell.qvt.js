@@ -152,7 +152,7 @@ window.MceShell = {
         onWebMcpStatus(event) {
             const { status, message } = event.detail;
             console.log("MCE2 Shell: WebMCP Status Change", status, message);
-            
+
             if (status === 'connected') {
                 this.webMcpStatus = 'green-13';
                 this.isSocketConnected = true;
@@ -171,7 +171,7 @@ window.MceShell = {
         flushPendingMessages() {
             if (this.pendingMessages.length === 0) return;
             console.info(`MCE2 Bridge: Flushing ${this.pendingMessages.length} pending messages.`);
-            
+
             while (this.pendingMessages.length > 0) {
                 const text = this.pendingMessages.shift();
                 window.webmcp._sendMessage({
@@ -185,10 +185,42 @@ window.MceShell = {
         onWebMcpMessage(event) {
             const msg = event.detail;
             console.log("MCE2 Shell: Received WebMCP message", msg);
+            // Handle the AI's "Voice" (The Acknowledgement)
+            if (msg.type === 'aiResponse') {
+                this.messages.push({ role: 'assistant', text: msg.text });
+            }
+
+            // Handle the AI's "Action" (The Tool Call)
+            if (msg.type === 'callTool') {
+                if (msg.tool === 'comm_send_huddle_alert') {
+                    this.triggerMoquiHuddleService(msg.arguments);
+                }
+            }
 
             if (msg.type === 'render' && msg.component) {
                 this.renderToCanvas(msg.component, msg.targetId || 'mce-canvas');
                 this.messages.push({ role: 'assistant', text: 'Blueprint received and rendered to canvas.' });
+            }
+        },
+        // Add this to your 'methods' block in MceShell.qvt.js
+        async triggerMoquiHuddleService(args) {
+            try {
+                // RUGGED: Call the service we defined in CommunicationServices.xml
+                const response = await fetch('/rest/s1/mce2/HuddleAlert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(args)
+                });
+
+                if (response.ok) {
+                    this.$q.notify({
+                        type: 'positive',
+                        message: `Huddle Alert logged for ${args.location}`,
+                        position: 'top'
+                    });
+                }
+            } catch (e) {
+                console.error("Moqui Service Failure", e);
             }
         },
         renderToCanvas(componentJson, targetId) {
@@ -221,8 +253,8 @@ window.MceShell = {
                 if (!this.isSocketConnected && !this.isConnecting) {
                     this.webMcpStatus = 'green-13';
                 }
-            } catch (e) { 
-                if (!this.isSocketConnected) this.webMcpStatus = 'red-9'; 
+            } catch (e) {
+                if (!this.isSocketConnected) this.webMcpStatus = 'red-9';
             }
             try {
                 const resp = await fetch('/rest/s1/mce2/Registry');
@@ -237,17 +269,33 @@ window.MceShell = {
         }
     },
     mounted() {
-        console.log("MCE2 Shell Mounted. Infrastructure bridge active.");
-        this.loadApps();
-        this.checkHeartbeat();
-        this.checkInterval = setInterval(() => this.checkHeartbeat(), 15000);
+        console.log("MCE2 Shell Mounted.");
 
-        // Listen for WebMCP events
-        window.addEventListener('webmcp-message', this.onWebMcpMessage);
-        window.addEventListener('webmcp-status', this.onWebMcpStatus);
+        const waitForWebMcp = setInterval(() => {
+            // RUGGED: Check if webmcp is ready AND we haven't already locked this session
+            if (typeof window.webmcp !== 'undefined' && !this.mcpInitialized) {
+                this.mcpInitialized = true; // Prevents the Triple Relay
+                clearInterval(waitForWebMcp); // Kills the watcher immediately
 
-        // Give webmcp.js a moment to initialize then auto-connect
-        setTimeout(() => this.tryAutoConnect(), 1000);
+                console.log("MCE2 Bridge: Initializing Registry...");
+
+                // Register the tool with an ASYNC callback to ensure it overrides the default
+                window.webmcp.registerTool('comm_send_huddle_alert', async (args) => {
+                    console.warn(">>> MCE2 Shell: CAPTURING TOOL CALL <<<", args);
+
+                    // Execute your Moqui REST service call
+                    const result = await this.triggerMoquiHuddleService(args);
+
+                    // Return this string so the AI knows the Moqui DB was updated
+                    return `Moqui Huddle Alert processed for ${args.location}.`;
+                });
+                // Standard indicators and auto-connect
+                window.addEventListener('webmcp-message', this.onWebMcpMessage, true);
+                window.addEventListener('webmcp-status', this.onWebMcpStatus, true);
+                this.tryAutoConnect();
+                this.checkInterval = setInterval(() => this.checkHeartbeat(), 15000);
+            }
+        }, 500); // Slightly slower check to allow library to settle
     },
     beforeUnmount() {
         if (this.checkInterval) clearInterval(this.checkInterval);

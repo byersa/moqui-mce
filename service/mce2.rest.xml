@@ -20,6 +20,12 @@
         </method>
     </resource>
 
+    <resource name="HuddleAlert">
+        <method type="POST">
+            <service name="nursinghome.CommunicationServices.send#HuddleAlert"/>
+        </method>
+    </resource>
+
     <!-- Modernized Project Services -->
     <resource name="Components">
         <method type="get" require-authentication="false">

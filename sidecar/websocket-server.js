@@ -94,6 +94,7 @@ const REGISTER_PATH = '/register';
 // Function to send notifications to a client and MCP (if connected)
 function sendNotification(clientWs, channelPath, notificationType, data, mcpOnly = false) {
     // Send to the client that initiated the action
+    console.error(`[Sidecar] In sendNotification data: ${data}`);
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
         if (!mcpOnly) {
             clientWs.send(JSON.stringify({
@@ -104,21 +105,23 @@ function sendNotification(clientWs, channelPath, notificationType, data, mcpOnly
     }
 
     // Also send to MCP if connected
-    if (channels[MCP_PATH] && channels[MCP_PATH].size > 0) {
-        Array.from(channels[MCP_PATH]).forEach((mcpClient) => {
-            if (mcpClient && mcpClient.readyState === WebSocket.OPEN) {
-                // For MCP, prefix names with the channel path
-                const mcpData = { ...data };
-                if (mcpData.name && channelPath) {
-                    mcpData.name = `${channelPath.slice(1)}-${mcpData.name}`;
-                }
-
-                mcpClient.send(JSON.stringify({
+    // 2. RUGGED BROADCAST: Send to EVERY active channel
+    console.error(`[Sidecar] In sendNotification Channel keys: ${Object.keys(channels)}`);
+    Object.keys(channels).forEach(path => {
+        channels[path].forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                console.error(`[Sidecar] Relaying ${notificationType} to channel: ${path}`);
+                client.send(JSON.stringify({
                     type: notificationType,
-                    ...mcpData
+                    ...data
                 }));
             }
         });
+    });
+
+    // Inside sendNotification
+    if (!channels[MCP_PATH] || channels[MCP_PATH].size === 0) {
+        console.error("[Sidecar] ERROR: No browser clients connected to receive relay!");
     }
 }
 
@@ -379,8 +382,8 @@ wss.on('connection', (ws, req) => {
 
                 case 'userMessage':
                     console.error(`[Sidecar] UI Message: ${data.text}`);
-                    console.error(`[Sidecar] mcpHostProcess: ${mcpHostProcess}`);
-                    console.error(`[Sidecar] mcpHostProcess.stdin: ${mcpHostProcess.stdin}`);
+                    console.error(`[Sidecar] mcpHostProcess: ${JSON.stringify(mcpHostProcess)}`);
+                    console.error(`[Sidecar] mcpHostProcess.stdin: ${JSON.stringify(mcpHostProcess.stdin)}`);
 
                     if (mcpHostProcess && mcpHostProcess.stdin) {
                         // We use a structured notification that the MCP Host is now 
@@ -1507,15 +1510,18 @@ function startHostProcess() {
 
     host.stdout.on('data', (data) => {
         const rawOutput = data.toString();
-        hostLogStream.write(data);
+        hostLogStream.write("DATA:" + data);
+        console.error(`[PIPE-DEBUG] Examining data: ${data}`);
 
         // Split by newline to handle multiple JSON objects in one chunk
         const lines = rawOutput.split('\n');
+        console.error(`[PIPE-DEBUG] Examining lines: ${lines}`);
 
         for (let line of lines) {
             line = line.trim();
             if (!line) continue;
 
+            console.error(`[PIPE-DEBUG] Examining line: ${line.substring(0, 50)}...`);
             // Extract JSON from any surrounding "graffiti"
             const start = line.indexOf('{');
             const end = line.lastIndexOf('}');
@@ -1524,6 +1530,7 @@ function startHostProcess() {
                 const jsonCandidate = line.substring(start, end + 1);
                 try {
                     const message = JSON.parse(jsonCandidate);
+                    console.error(`[PIPE-DEBUG] Valid JSON found. Method: ${message.method}`);
 
                     if (message.method === "callTool") {
                         console.error(`[PIPE-WATCH] DIRECT RELAY: ${message.params.tool}`);
@@ -1533,10 +1540,15 @@ function startHostProcess() {
                         console.error(`[PIPE-WATCH] AI ACK RELAY: ${message.params.text}`);
                         // Relay to UI
                         sendNotification(null, MCP_PATH, 'aiResponse', { text: message.params.text }, true);
+                    } else {
+                        console.error(`[PIPE-DEBUG] Unknown method: ${message.method}`);
                     }
                 } catch (e) {
+                    console.error(`[PIPE-DEBUG] JSON Parse Error: ${e.message}`);
                     // Not valid JSON for this specific line, move to next
                 }
+            } else {
+                console.error(`[PIPE-DEBUG] No JSON brackets found in line.`);
             }
         }
     });
