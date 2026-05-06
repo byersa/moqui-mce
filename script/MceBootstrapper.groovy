@@ -1,46 +1,67 @@
+/**
+ * MCE Bootstrapper
+ * Configures the shell environment, loads dependencies, and prepares the SPA foundation.
+ * Pattern matched to AitreePreActions.groovy.
+ */
 import org.moqui.context.ExecutionContext
 
 ExecutionContext ec = context.ec
 long ts = System.currentTimeMillis()
 
-// Initialize standard Moqui lists if they are null
-if (context.html_stylesheets == null) context.html_stylesheets = []
-if (context.footer_scripts == null) context.footer_scripts = []
+// 1. Set App Constants
+ec.context.put("appRootPath", "/mce")
+ec.context.put("basePath", "/mce")
 
-// 1. Core External Libraries (Quasar 2 / Vue 3)
-html_stylesheets.add("https://unpkg.com/quasar@2.12.6/dist/quasar.prod.css")
-html_stylesheets.add("https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900")
-html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons")
-html_stylesheets.add("https://fonts.googleapis.com/icon?family=Material+Icons+Outlined")
+// 2. Defensively remove standard WebrootVue
+footer_scripts.remove('/js/WebrootVue.qvt.js')
 
-// Add to your stylesheet links if MceBootstrapper handles them
-//html_stylesheets.add("https://unpkg.com/@codesandbox/sandpack-client@2.13.0/dist/styles.css")
+// Helper to add unique assets
+def addUniqueStyle = { url -> if (!html_stylesheets.contains(url)) html_stylesheets.add(url) }
+def addUniqueScript = { url -> if (!footer_scripts.contains(url)) footer_scripts.add(url) }
 
-footer_scripts.add("https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js")
-footer_scripts.add("https://unpkg.com/quasar@2.12.6/dist/quasar.umd.prod.js")
-// Add the WebMCP Client Relay with cache buster to ensure the latest bridge fixes are loaded
-footer_scripts.add("http://localhost:3000/webmcp.js?v=" + ts)
-//footer_scripts.add("https://unpkg.com/@codesandbox/sandpack-client@2.13.0/dist/index.browser.js")
+// 3. Load Base Libraries (Material Icons, Roboto, Quasar CSS)
+addUniqueStyle("https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons|Material+Icons+Outlined")
+addUniqueStyle("https://unpkg.com/quasar@2.12.6/dist/quasar.prod.css")
 
-// 2. Resolve and include the MceShell component asset
-// We use the 'asset' transition defined in MceShell.xml
-String appUrl = sri.makeUrlByType("asset/MceShell.qvt.js", "transition", null, "false").pathWithParams
-footer_scripts.add(appUrl + (appUrl.contains("?") ? "&" : "?") + "v=" + ts)
+// 4. Load MCE Shell Styles
+addUniqueStyle("/mce/include/MceShell.css?v=" + ts)
 
-// 3. Validation: Verify MCE2 Node Infrastructure
-boolean isNodeUp = false
-try {
-    // Check if port 3000 is listening
-    def socket = new java.net.Socket("localhost", 3000)
-    socket.close()
-    isNodeUp = true
-} catch (Exception e) {
-    ec.logger.warn("MCE2 Script Validation: Node Server NOT detected on port 3000.")
+// 5. Load JavaScript Dependencies
+String instancePurpose = System.getProperty("instance_purpose")
+boolean isProd = !instancePurpose || instancePurpose == 'production'
+
+if (isProd) {
+    addUniqueScript("https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js")
+    addUniqueScript("https://unpkg.com/quasar@2.12.6/dist/quasar.umd.prod.js")
+} else {
+    addUniqueScript("https://unpkg.com/vue@3.3.4/dist/vue.global.js")
+    addUniqueScript("https://unpkg.com/quasar@2.12.6/dist/quasar.umd.js")
 }
 
-if (!isNodeUp) {
-    // Log a warning directly to the browser console if the infrastructure is missing
-    footer_scripts.add("data:text/javascript,console.warn('MCE2 INFRASTRUCTURE WARNING: Local Node server on port 3000 is not responding. WebMCP tools and AI interactions will be disabled.')")
+// Additional SPA / MCE Libraries
+addUniqueScript("/mce/js/webmcp.js?v=" + ts)
+
+// 6. Load MceShell Component Script
+addUniqueScript("/mce/asset/MceShell.qvt.js?v=" + ts)
+
+// 7. Load Modular Components (Production Preview, etc.)
+addUniqueScript("/mce/asset/ProductionPreview.qvt.js?v=" + ts)
+
+// 8. Infrastructure Heartbeat Check
+if (ec.web.requestAttributes.MceNodeChecked == null) {
+    boolean isNodeUp = false
+    try {
+        def socket = new java.net.Socket("localhost", 3000)
+        socket.close()
+        isNodeUp = true
+    } catch (Exception e) {
+        ec.logger.warn("MCE Shell: WebMCP Node Server (port 3000) not detected.")
+    }
+
+    if (!isNodeUp) {
+        addUniqueScript("data:text/javascript,console.warn('MCE Shell: Local WebMCP Node server (3000) is offline.')")
+    }
+    ec.web.requestAttributes.MceNodeChecked = true
 }
 
 return context

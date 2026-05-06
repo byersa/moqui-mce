@@ -94,7 +94,7 @@ const REGISTER_PATH = '/register';
 // Function to send notifications to a client and MCP (if connected)
 function sendNotification(clientWs, channelPath, notificationType, data, mcpOnly = false) {
     // Send to the client that initiated the action
-    console.error(`[Sidecar] In sendNotification data: ${data}`);
+    console.error(`[Sidecar] In sendNotification data: ${JSON.stringify(data)}`);
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
         if (!mcpOnly) {
             clientWs.send(JSON.stringify({
@@ -382,8 +382,8 @@ wss.on('connection', (ws, req) => {
 
                 case 'userMessage':
                     console.error(`[Sidecar] UI Message: ${data.text}`);
-                    console.error(`[Sidecar] mcpHostProcess: ${JSON.stringify(mcpHostProcess)}`);
-                    console.error(`[Sidecar] mcpHostProcess.stdin: ${JSON.stringify(mcpHostProcess.stdin)}`);
+                    //console.error(`[Sidecar] mcpHostProcess: ${JSON.stringify(mcpHostProcess)}`);
+                    //console.error(`[Sidecar] mcpHostProcess.stdin: ${JSON.stringify(mcpHostProcess.stdin)}`);
 
                     if (mcpHostProcess && mcpHostProcess.stdin) {
                         // We use a structured notification that the MCP Host is now 

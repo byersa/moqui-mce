@@ -1514,6 +1514,7 @@ if (typeof window.WebMcpClient === 'undefined') {
                 if (result instanceof Promise) {
                     result
                         .then(resolvedResult => {
+                            console.info("[WebMCP] resolvedResult:", resolvedResult);
                             this._sendMessage({
                                 id,
                                 type: 'toolResponse',

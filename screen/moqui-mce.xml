@@ -12,6 +12,26 @@
         <default-response type="none"/>
     </transition>
 
+    <transition name="include" read-only="true">
+        <actions>
+            <script><![CDATA[
+                def path = sri.screenUrlInfo.extraPathNameList.join("/")
+                ec.web.sendResourceResponse("component://moqui-mce/screen/include/" + path)
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <transition name="js" read-only="true">
+        <actions>
+            <script><![CDATA[
+                def path = sri.screenUrlInfo.extraPathNameList.join("/")
+                ec.web.sendResourceResponse("component://moqui-mce/sidecar/" + path)
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
     <subscreens default-item="mce-shell">
         <subscreens-item name="mce-shell" location="component://moqui-mce/screen/mce/MceShell.xml"/>
     </subscreens>

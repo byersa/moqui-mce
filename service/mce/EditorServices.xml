@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="AvailableEditors" authenticate="false">
+        <out-parameters>
+            <parameter name="editors" type="List"><parameter name="editor" type="Map"/></parameter>
+        </out-parameters>
+        <actions>
+            <entity-find entity-name="moqui.mce.MceEditor" list="editorList" authorize-skip="true"/>
+            <script>
+                editors = editorList.collect { [value: it.editorId, label: it.description ?: it.editorId, path: it.componentPath, type: it.contextType] }
+            </script>
+        </actions>
+    </service>
+
+    <service verb="create" noun="AgentGoal">
+        <in-parameters>
+            <parameter name="chatMessage" required="true"/>
+            <parameter name="screenSnapshot"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="workEffortId"/>
+        </out-parameters>
+        <actions>
+            <service-call name="create#mantle.work.effort.WorkEffort" out-map="context"
+                          in-map="[workEffortTypeEnumId:'WetTask', statusId:'WeInProcess', 
+                                   workEffortName: (chatMessage.length() > 100 ? chatMessage.substring(0, 97) + '...' : chatMessage),
+                                   description: chatMessage, contextSnapshot: screenSnapshot]"/>
+            <set field="workEffortId" from="workEffortId"/>
+        </actions>
+    </service>
+
+</services>

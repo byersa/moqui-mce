@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rest-api xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/rest-api-3.xsd"
+          name="mce" version="s1" require-authentication="false" require-csrf="false">
+
+    <resource name="GoalServices">
+        <resource name="AgentGoal">
+            <method type="post">
+                <service name="mce.GoalServices.create#AgentGoal"/>
+            </method>
+        </resource>
+    </resource>
+
+    <resource name="AvailableEditors">
+        <method type="get" require-authentication="false">
+            <service name="mce.EditorServices.get#AvailableEditors"/>
+        </method>
+    </resource>
+
+</rest-api>

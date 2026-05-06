@@ -1,0 +1,92 @@
+/* MCE Shell Global Styles */
+[v-cloak] { display: none !important; }
+
+html, body { 
+    margin: 0; 
+    padding: 0; 
+    overflow: hidden !important; 
+    background-color: #121212; 
+    height: 100vh !important; 
+    width: 100vw !important; 
+}
+
+#q-app { 
+    height: 100vh !important; 
+    width: 100vw !important; 
+    overflow: hidden !important; 
+    position: fixed !important; 
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: #1c262b;
+}
+
+.q-layout, .q-layout-container { 
+    height: 100% !important; 
+    max-height: 100vh !important; 
+}
+
+.letter-spacing-1 { letter-spacing: 1px; }
+
+/* Visual Parity with moqui-ai theme */
+.bg-blue-grey-10 { background: #263238 !important; }
+.bg-blue-grey-11 { background: #1c262b !important; }
+
+/* Ensure Right Drawer (AI Chat) is always on top of the canvas */
+.q-drawer--right { 
+    z-index: 3001 !important; 
+    border-left: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.2) !important;
+}
+
+#mce-chat-input-area { 
+    z-index: 3005 !important; 
+    width: 100% !important;
+    background: #263238 !important;
+    border-top: 1px solid rgba(255,255,255,0.15) !important;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.3) !important;
+}
+
+/* Ensure flex context works properly in drawers */
+.q-drawer__content { 
+    display: flex !important; 
+    flex-direction: column !important; 
+    overflow: hidden !important; 
+}
+
+.mce-chat-history { 
+    flex-grow: 1 !important; 
+    height: auto !important; 
+}
+
+#mce-chat-input-area .q-field__control { 
+    margin-left: 0 !important; 
+    margin-right: 0 !important; 
+}
+
+.q-page-container { z-index: 1; }
+
+/* Force WebMCP Widget to the front and make it visible */
+#webmcp-bridge-square { z-index: 10001 !important; }
+#webmcp-bridge-square .webmcp-trigger { 
+    width: 40px !important; 
+    height: 40px !important; 
+    background: #007bff !important; 
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    display: block !important;
+}
+
+/* Material Icons Outlined Fix */
+.material-icons-outlined {
+    font-family: 'Material Icons Outlined' !important;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+}

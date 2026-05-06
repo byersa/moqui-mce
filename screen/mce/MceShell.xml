@@ -2,142 +2,94 @@
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         require-authentication="false" allow-extra-path="true" root-screen="true">
 
-    <transition name="asset" read-only="true">
-        <actions>
-            <script><![CDATA[
-                def path = sri.screenUrlInfo.extraPathNameList.join("/")
-                ec.web.sendResourceResponse("component://moqui-mce/screen/mce/assets/" + path)
-            ]]></script>
-        </actions>
-        <default-response type="none"/>
-    </transition>
-
-    <actions>
+    <!-- Pre-Actions for Environment Setup -->
+    <pre-actions>
         <!-- Identity Handshake -->
-        <service-call name="mce2.SessionServices.get#ConnectionToken" out-map="tokenOut"/>
+        <service-call name="mce2.SessionServices.get#ConnectionToken" out-map="tokenOut" authenticate="false"/>
         <set field="connectionToken" from="tokenOut.connectionToken"/>
         <set field="isDesignMode" from="tokenOut.isDesignMode ?: 'N'"/>
-        
+
+        <!-- Bootstrapper for UI Assets and Dependencies -->
         <script location="component://moqui-mce/script/MceBootstrapper.groovy"/>
 
-        <!--
-        <service-call name="mce2.SessionServices.start#NodeServer" 
-                  in-map="[connectionToken:connectionToken]"/>
-                  -->
-    </actions>
+        <!-- Clear global script lists to prevent double-rendering by Moqui footer -->
+        <script><![CDATA[
+            context.put("local_html_stylesheets", new ArrayList(html_stylesheets))
+            context.put("local_html_scripts", new ArrayList(html_scripts))
+            context.put("local_footer_scripts", new ArrayList(footer_scripts))
+            html_stylesheets.clear()
+            html_scripts.clear()
+            footer_scripts.clear()
+        ]]></script>
+    </pre-actions>
 
     <widgets>
         <render-mode>
             <text type="html"><![CDATA[
-                <!-- Manual Header Injection for root-screen -->
+                <!-- WebMCP Configuration -->
                 <script>
                     window.WEBMCP_SERVER = 'ws://localhost:3000';
                     window.WEBMCP_OPTIONS = { position: 'bottom-left', padding: '15px' };
                 </script>
                 
-                <#list (html_stylesheets![]) as stylesheet>
+                <!-- CSS Injection from Bootstrapper -->
+                <#list (local_html_stylesheets![]) as stylesheet>
                 <link rel="stylesheet" href="${stylesheet}">
                 </#list>
-                <#list (footer_scripts![]) as script>
-                <script src="${script}"></script>
+
+                <#-- AGGRESSIVE DEDUPLICATION: Track unique filenames to prevent double loads -->
+                <#assign renderedBasenames = []>
+                <#function isDuplicate url>
+                    <#local basename = url?keep_before("?")?keep_after_last("/")>
+                    <#if basename == ""> <#local basename = url> </#if>
+                    <#if renderedBasenames?seq_contains(basename)>
+                        <#return true>
+                    <#else>
+                        <#assign renderedBasenames = renderedBasenames + [basename]>
+                        <#return false>
+                    </#if>
+                </#function>
+
+                <!-- Head Scripts Injection -->
+                <#list (local_html_scripts![]) as script>
+                    <#if !isDuplicate(script)>
+                        <script src="${script}"></script>
+                    </#if>
                 </#list>
 
                 <!-- MCE2 Vue Mount Point -->
                 <div id="q-app" v-cloak></div>
                 
+                <!-- JS Injection and Mounting -->
+                <#list (local_footer_scripts![]) as script>
+                    <#if !isDuplicate(script)>
+                        <script src="${script}"></script>
+                    </#if>
+                </#list>
+
                 <script type="module">
                     document.addEventListener('DOMContentLoaded', () => {
-                        try {
+                        const initMce = () => {
                             if (window.Vue && window.Quasar && window.MceShell) {
+                                if (window.MceShellInstance) return; 
+                                
                                 const { createApp } = window.Vue;
                                 const app = createApp(window.MceShell, {
                                     connectionToken: '${connectionToken}',
                                     isDesignMode: '${isDesignMode}'
                                 });
                                 app.use(window.Quasar, {
-                                    config: {
-                                        dark: false,
-                                        iconSet: 'material-icons-outlined'
-                                    }
+                                    config: { dark: false, iconSet: 'material-icons-outlined' }
                                 });
-                                app.mount('#q-app');
-                                console.info("MCE2 Shell: Production/Design UI Foundation initialized.");
+                                window.MceShellInstance = app.mount('#q-app');
+                                console.info("MCE2 Shell: Production Foundation Initialized.");
                             } else {
-                                throw new Error("Missing dependencies: Vue, Quasar, or MceShell component definition.");
+                                setTimeout(initMce, 100);
                             }
-                        } catch (err) {
-                            console.error("MCE2 Shell Boot Failure:", err);
-                        }
+                        };
+                        initMce();
                     });
                 </script>
-                
-                <style>
-                    [v-cloak] { display: none !important; }
-                    html, body { margin: 0; padding: 0; overflow: hidden !important; background-color: #121212; height: 100vh !important; width: 100vw !important; }
-                    #q-app { 
-                        height: 100vh !important; 
-                        width: 100vw !important; 
-                        overflow: hidden !important; 
-                        position: fixed !important; 
-                        top: 0; left: 0; bottom: 0; right: 0;
-                        background: #1c262b;
-                    }
-                    .q-layout, .q-layout-container { height: 100% !important; max-height: 100vh !important; }
-                    .letter-spacing-1 { letter-spacing: 1px; }
-                    
-                    /* Visual Parity with moqui-ai theme */
-                    .bg-blue-grey-10 { background: #263238 !important; }
-                    .bg-blue-grey-11 { background: #1c262b !important; }
-                    
-                    /* Ensure Right Drawer (AI Chat) is always on top of the canvas */
-                    .q-drawer--right { 
-                        z-index: 3001 !important; 
-                        border-left: 1px solid rgba(255,255,255,0.1) !important;
-                        box-shadow: -2px 0 10px rgba(0,0,0,0.2) !important;
-                    }
-                    #mce-chat-input-area { 
-                        z-index: 3005 !important; 
-                        width: 100% !important;
-                        background: #263238 !important;
-                        border-top: 1px solid rgba(255,255,255,0.15) !important;
-                        box-shadow: 0 -4px 10px rgba(0,0,0,0.3) !important;
-                    }
-
-                    /* Ensure flex context works properly in drawers */
-                    .q-drawer__content { display: flex !important; flex-direction: column !important; overflow: hidden !important; }
-                    .mce-chat-history { flex-grow: 1 !important; height: auto !important; }
-                    #mce-chat-input-area .q-field__control { 
-                        margin-left: 0 !important; 
-                        margin-right: 0 !important; 
-                    }
-                    .q-page-container { z-index: 1; }
-                    
-                    /* Force WebMCP Widget to the front and make it visible */
-                    #webmcp-bridge-square { z-index: 10001 !important; }
-                    #webmcp-bridge-square .webmcp-trigger { 
-                        width: 40px !important; 
-                        height: 40px !important; 
-                        background: #007bff !important; 
-                        border-radius: 4px !important;
-                        cursor: pointer !important;
-                        display: block !important;
-                    }
-
-                    /* Icon and Typography Fixes */
-                        font-family: 'Material Icons Outlined' !important;
-                        font-weight: normal;
-                        font-style: normal;
-                        font-size: 24px;
-                        line-height: 1;
-                        letter-spacing: normal;
-                        text-transform: none;
-                        display: inline-block;
-                        white-space: nowrap;
-                        word-wrap: normal;
-                        direction: ltr;
-                        -webkit-font-smoothing: antialiased;
-                    }
-                </style>
             ]]></text>
         </render-mode>
     </widgets>

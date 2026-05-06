@@ -25,4 +25,5 @@ ec.service.sync().name("create#mce2.layer.LayerInteraction")
 
 context.connectionToken = token
 context.isDesignMode = isDesignMode
+ec.logger.info("In getConnectionToken, token:" + token)
 return context

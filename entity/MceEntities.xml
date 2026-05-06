@@ -33,6 +33,13 @@
         </relationship>
     </entity>
 
+    <entity entity-name="MceEditor" package="moqui.mce" enable-audit-log="true" authorize-skip="true">
+        <field name="editorId" type="id" is-pk="true"/>
+        <field name="componentPath" type="text-medium"/>
+        <field name="contextType" type="id"/>
+        <field name="description" type="text-medium"/>
+    </entity>
+
     <entity entity-name="McpToolLibrary" package="moqui.mcp" enable-audit-log="true">
         <field name="libraryId" type="id" is-pk="true"/>
         <field name="description" type="text-medium"/>
@@ -45,5 +52,10 @@
             <key-map field-name="userGroupId"/>
         </relationship>
     </entity>
+
+    <entity-extend entity-name="mantle.work.effort.WorkEffort" enable-audit-log="true">
+        <field name="contextSnapshot" type="text-long"/>
+        <field name="proposedChanges" type="text-long"/>
+    </entity-extend>
 
 </entities>
