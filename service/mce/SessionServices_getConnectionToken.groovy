@@ -13,7 +13,7 @@ def tokenCache = ec.cache.getCache("mcp-connection-tokens") ?: ec.cache.makeCach
 tokenCache.put(ec.web.session.getId(), token)
 
 // 2. Create LayerInteraction record using the auto-create service
-ec.service.sync().name("create#mce2.layer.LayerInteraction")
+ec.service.sync().name("create#mce.layer.LayerInteraction")
     .parameters([
         mcpToken: token, 
         userId: ec.user.userId ?: '_NA_', 

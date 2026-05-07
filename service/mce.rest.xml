@@ -1,14 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rest-api xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/rest-api-3.xsd"
-          name="mce" version="s1" require-authentication="false" require-csrf="false">
+          name="mce" version="s1" require-csrf="false" require-authentication="false">
+    
+    <resource name="AvailableApps">
+        <method type="get" require-authentication="false">
+            <service name="mce.SessionServices.get#AvailableApps"/>
+        </method>
+    </resource>
 
-    <resource name="GoalServices">
+    <resource name="Registry">
+        <method type="get" require-authentication="false">
+            <service name="moqui.mcp.MceServices.list#Tools"/>
+        </method>
+    </resource>
+
+    <resource name="getConnectionToken">
+        <method type="get" require-authentication="false">
+            <service name="mce.SessionServices.get#ConnectionToken"/>
+        </method>
+    </resource>
+
+    <resource name="HuddleAlert">
+        <method type="POST">
+            <service name="nursinghome.CommunicationServices.send#HuddleAlert"/>
+        </method>
+    </resource>
+
+    <!-- Modernized Project Services -->
+    <resource name="Components">
+        <method type="get" require-authentication="false">
+            <service name="mce.ProjectServices.get#Components"/>
+        </method>
+    </resource>
+
+    <resource name="Screens">
+        <method type="get" require-authentication="false">
+            <service name="mce.ProjectServices.get#Screens"/>
+        </method>
+    </resource>
+
+    <resource name="Explorer">
+        <method type="get" require-authentication="false">
+            <service name="mce.ProjectServices.get#Explorer"/>
+        </method>
+    </resource>
+
+    <resource name="BlueprintFromXml">
+        <method type="get" require-authentication="false">
+            <service name="mce.ProjectServices.generate#BlueprintFromXml"/>
+        </method>
+    </resource>
+
         <resource name="AgentGoal">
             <method type="post">
-                <service name="mce.GoalServices.create#AgentGoal"/>
+                <service name="mce.EditorServices.create#AgentGoal"/>
             </method>
         </resource>
-    </resource>
 
     <resource name="AvailableEditors">
         <method type="get" require-authentication="false">
@@ -16,4 +63,5 @@
         </method>
     </resource>
 
+    
 </rest-api>

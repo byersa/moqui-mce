@@ -5,7 +5,7 @@
     <!-- Pre-Actions for Environment Setup -->
     <pre-actions>
         <!-- Identity Handshake -->
-        <service-call name="mce2.SessionServices.get#ConnectionToken" out-map="tokenOut" authenticate="false"/>
+        <service-call name="mce.SessionServices.get#ConnectionToken" out-map="tokenOut" authenticate="false"/>
         <set field="connectionToken" from="tokenOut.connectionToken"/>
         <set field="isDesignMode" from="tokenOut.isDesignMode ?: 'N'"/>
 
@@ -70,13 +70,15 @@
                 <script type="module">
                     document.addEventListener('DOMContentLoaded', () => {
                         const initMce = () => {
+                                console.info("MCE2 Shell: sessionToken: ${ec.web.sessionToken}");
                             if (window.Vue && window.Quasar && window.MceShell) {
                                 if (window.MceShellInstance) return; 
                                 
                                 const { createApp } = window.Vue;
                                 const app = createApp(window.MceShell, {
                                     connectionToken: '${connectionToken}',
-                                    isDesignMode: '${isDesignMode}'
+                                    csrfToken: '${ec.web.sessionToken}',
+                                    isDesignMode: '${isDesignMode}',
                                 });
                                 app.use(window.Quasar, {
                                     config: { dark: false, iconSet: 'material-icons-outlined' }

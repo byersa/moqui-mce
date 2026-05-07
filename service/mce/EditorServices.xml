@@ -24,7 +24,7 @@
         </out-parameters>
         <actions>
             <service-call name="create#mantle.work.effort.WorkEffort" out-map="context"
-                          in-map="[workEffortTypeEnumId:'WetTask', statusId:'WeInProcess', 
+                          in-map="[workEffortTypeEnumId:'WetTask', statusId:'WeInProgress', 
                                    workEffortName: (chatMessage.length() > 100 ? chatMessage.substring(0, 97) + '...' : chatMessage),
                                    description: chatMessage, contextSnapshot: screenSnapshot]"/>
             <set field="workEffortId" from="workEffortId"/>

@@ -17,7 +17,7 @@
           2. It only adds the MCE2 REST API registration; it does not touch other webroot settings.
         -->
         <webapp name="webroot">
-            <rest-api name="mce2" location="component://moqui-mce/service/mce2.rest.xml"/>
+            <rest-api name="mce" location="component://moqui-mce/service/mce.rest.xml"/>
         </webapp>
     </webapp-list>
 

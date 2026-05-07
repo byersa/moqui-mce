@@ -12,7 +12,7 @@
 
     <!-- MCE2 Architectural Services Security -->
     <moqui.security.ArtifactGroup artifactGroupId="MCE2_SERVICES" description="MCE2 Architectural Services"/>
-    <moqui.security.ArtifactGroupMember artifactGroupId="MCE2_SERVICES" artifactName="mce2\..*" nameIsPattern="Y" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCE2_SERVICES" artifactName="mce\..*" nameIsPattern="Y" artifactTypeEnumId="AT_SERVICE" inheritAuthz="Y"/>
     
     <moqui.security.ArtifactAuthz artifactAuthzId="MCE2_SERVICES_ADMIN" artifactGroupId="MCE2_SERVICES" 
                                   userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>

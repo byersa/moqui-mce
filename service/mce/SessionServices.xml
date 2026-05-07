@@ -8,14 +8,14 @@
         </out-parameters>
         <actions>
             <!-- Grounded startup: Ensure Node infrastructure is alive whenever a session token is requested -->
-            <service-call name="mce2.SessionServices.start#NodeServer" async="true"/>
-            <script location="component://moqui-mce/service/mce2/SessionServices_getConnectionToken.groovy"/>
+            <service-call name="mce.SessionServices.start#NodeServer" async="true"/>
+            <script location="component://moqui-mce/service/mce/SessionServices_getConnectionToken.groovy"/>
         </actions>
     </service>
 
     <service verb="start" noun="NodeServer" transaction="ignore" authenticate="false">
         <actions>
-            <script location="component://moqui-mce/service/mce2/SessionServices_startNodeServer.groovy"/>
+            <script location="component://moqui-mce/service/mce/SessionServices_startNodeServer.groovy"/>
         </actions>
     </service>
 

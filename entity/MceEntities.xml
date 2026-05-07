@@ -17,7 +17,7 @@
         </relationship>
     </entity>
 
-    <entity entity-name="LayerInteraction" package="mce2.layer" enable-audit-log="true">
+    <entity entity-name="LayerInteraction" package="mce.layer" enable-audit-log="true">
         <description>Session-aware tracking of interactions between AI Chat and specific MCE layers.</description>
         <field name="mcpToken" type="id" is-pk="true"/>
         <field name="userId" type="id"/>

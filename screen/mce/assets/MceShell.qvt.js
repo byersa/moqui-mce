@@ -6,7 +6,8 @@ window.MceShell = {
     name: 'MceShell',
     props: {
         connectionToken: String,
-        isDesignMode: String
+        isDesignMode: String,
+        csrfToken: String,
     },
     data() {
         return {
@@ -259,22 +260,37 @@ window.MceShell = {
                             huddleType: { type: "string" }
                         }
                     },
-                    (args) => {
-                        console.warn("ACTUAL HUDDLE TRIGGERED:", args);
+                    async (args) => {
+                        // 1. Show the visual notification (The "Aha" moment)
+                        window.Quasar.Notify.create({ type: 'negative', message: 'HUDDLE ALERT: ' + args.note });
 
-                        // Use the global Quasar instance to trigger a notification
-                        if (window.Quasar && window.Quasar.Notify) {
-                            window.Quasar.Notify.create({
-                                type: 'warning',
-                                message: `EMERGENCY: ${args.note}`,
-                                caption: `Location: ${args.location}`,
-                                position: 'top',
-                                timeout: 5000,
-                                actions: [{ label: 'Dismiss', color: 'white' }]
+                        // 2. Persist the goal to Moqui (The "Architect" moment)
+                        try {
+                            const response = await fetch('/rest/s1/mce/AgentGoal', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-Token': this.csrfToken
+                                },
+                                credentials: 'include', // RUGGED: Shares your browser's login session
+                                body: JSON.stringify({
+                                    chatMessage: args.note,
+                                    screenSnapshot: JSON.stringify(args)
+                                })
                             });
+
+                            const result = await response.json();
+
+                            window.Quasar.Notify.create({
+                                type: 'positive',
+                                message: 'Agent Goal Persisted',
+                                caption: 'WorkEffort ID: ' + result.workEffortId
+                            });
+                        } catch (e) {
+                            console.error("Failed to save AgentGoal", e);
                         }
 
-                        return { success: true, message: "Huddle alert displayed to staff." };
+                        return { success: true, message: "Huddle triggered and goal persisted." };
                     }
                 );
 
