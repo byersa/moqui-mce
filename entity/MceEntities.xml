@@ -53,9 +53,9 @@
         </relationship>
     </entity>
 
-    <entity-extend entity-name="mantle.work.effort.WorkEffort" enable-audit-log="true">
+    <extend-entity entity-name="WorkEffort" package="mantle.work.effort" enable-audit-log="true">
         <field name="contextSnapshot" type="text-long"/>
         <field name="proposedChanges" type="text-long"/>
-    </entity-extend>
+    </extend-entity>
 
 </entities>

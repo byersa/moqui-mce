@@ -2,7 +2,8 @@
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         require-authentication="false" allow-extra-path="true">
 
-    <transition name="asset" read-only="true">
+    <!--
+    <transition name="assets" read-only="true">
         <actions>
             <script><![CDATA[
                 def path = sri.screenUrlInfo.extraPathNameList.join("/")
@@ -11,6 +12,7 @@
         </actions>
         <default-response type="none"/>
     </transition>
+    -->
 
     <transition name="include" read-only="true">
         <actions>

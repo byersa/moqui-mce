@@ -1,0 +1,19 @@
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        allow-extra-path="true" standalone="true">
+    <actions>
+        <script>
+            // Get the filename from the extra path
+            String fileName = sri.getExtraPathNameList().join('/')
+            if (fileName) {
+                // Find the physical file in the same directory as this screen
+                def resourceRef = ec.resource.getLocationReference("component://moqui-mce/screen/mce/assets/" + fileName)
+                if (resourceRef?.exists) {
+                    // Stream it with the correct MIME type
+                    ec.web.sendResourceResponse(resourceRef.location) //
+                }
+            }
+        </script>
+    </actions>
+    <widgets/>
+</screen>

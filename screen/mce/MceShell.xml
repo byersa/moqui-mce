@@ -67,24 +67,62 @@
                     </#if>
                 </#list>
 
+                <script type="importmap">
+                    {
+                      "imports": {
+                        "vue": "https://unpkg.com/vue@3.3.4/dist/vue.esm-browser.js",
+                        "vue-demi": "https://unpkg.com/vue-demi@0.14.6/lib/index.mjs",
+                        "pinia": "https://unpkg.com/pinia@2.1.7/dist/pinia.esm-browser.js",
+                        "@vue/devtools-api": "https://unpkg.com/@vue/devtools-api@6.6.1/lib/esm/index.js"
+                      }
+                    }
+                </script>
+
                 <script type="module">
-                    document.addEventListener('DOMContentLoaded', () => {
+                    import { BlueprintClient } from '/assets/BlueprintClient.js';
+                    import { useMeetingsStore } from '/assets/meetingsStore.js';
+                    import { createPinia } from 'pinia'; // Map handles the URL
+                    console.info("In MceShell");
+                    // A single, unified listener for the Sidecar
+                    window.addEventListener('webmcp-command', (event) => {
+                        const cmd = event.detail; // Extract the JSON payload
+        
+                        // Safety check: Ensure the shell is mounted and has a blueprint
+                        if (window.MceShellInstance && window.MceShellInstance.currentBlueprint) {
+                            console.info("MCE Pulse Triggered:", cmd.action);
+        
+                            // Route to the uploaded library
+                            BlueprintClient.processCommand(window.MceShellInstance.currentBlueprint, cmd);
+                        } else {
+                            console.warn("MCE Shell: Command received but blueprint not loaded.");
+                        }
+                    });
+                    window.addEventListener('DOMContentLoaded', () => {
                         const initMce = () => {
-                                console.info("MCE2 Shell: sessionToken: ${ec.web.sessionToken}");
-                            if (window.Vue && window.Quasar && window.MceShell) {
-                                if (window.MceShellInstance) return; 
-                                
+                            // 1. Check for the Raw Pinia Library (from CDN)
+                            if (window.Vue && window.Quasar && window.MceShell && window.BlueprintClient) {
+                                if (window.MceShellInstance) return;
+                        
                                 const { createApp } = window.Vue;
+                                
                                 const app = createApp(window.MceShell, {
                                     connectionToken: '${connectionToken}',
-                                    csrfToken: '${ec.web.sessionToken}',
-                                    isDesignMode: '${isDesignMode}',
+                                    isDesignMode: '${isDesignMode}'
                                 });
-                                app.use(window.Quasar, {
-                                    config: { dark: false, iconSet: 'material-icons-outlined' }
-                                });
+                        
+                                // 3. Register Plugins
+                                const pinia = createPinia();
+                                app.use(pinia);
+                                const meetingsStore = useMeetingsStore();
+                                app.use(window.Quasar, { config: { dark: false } });
+                                app.use(window.BlueprintClient);
+                        
+                                // 4. Mount and Finalize
                                 window.MceShellInstance = app.mount('#q-app');
-                                console.info("MCE2 Shell: Production Foundation Initialized.");
+                                
+                                // 5. Expose for debugging/legacy compatibility (like moqui.pinia)
+                                window.PiniaInstance = pinia; 
+                                console.info("MCE: Pinia attached and Shell mounted.");
                             } else {
                                 setTimeout(initMce, 100);
                             }

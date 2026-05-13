@@ -4,6 +4,7 @@
  * Pattern matched to AitreePreActions.groovy.
  */
 import org.moqui.context.ExecutionContext
+import java.net.Socket
 
 ExecutionContext ec = context.ec
 long ts = System.currentTimeMillis()
@@ -42,16 +43,16 @@ if (isProd) {
 addUniqueScript("/mce/js/webmcp.js?v=" + ts)
 
 // 6. Load MceShell Component Script
-addUniqueScript("/mce/asset/MceShell.qvt.js?v=" + ts)
+addUniqueScript("/assets/MceShell.qvt.js?v=" + ts)
 
 // 7. Load Modular Components (Production Preview, etc.)
-addUniqueScript("/mce/asset/ProductionPreview.qvt.js?v=" + ts)
+addUniqueScript("/assets/ProductionPreview.qvt.js?v=" + ts)
 
 // 8. Infrastructure Heartbeat Check
 if (ec.web.requestAttributes.MceNodeChecked == null) {
     boolean isNodeUp = false
     try {
-        def socket = new java.net.Socket("localhost", 3000)
+        def socket = new java.net.Socket("127.0.0.1", 3000)
         socket.close()
         isNodeUp = true
     } catch (Exception e) {
@@ -62,6 +63,51 @@ if (ec.web.requestAttributes.MceNodeChecked == null) {
         addUniqueScript("data:text/javascript,console.warn('MCE Shell: Local WebMCP Node server (3000) is offline.')")
     }
     ec.web.requestAttributes.MceNodeChecked = true
+}
+
+// --- Sidecar Auto-Start Logic ---
+def sidecarPort = 3000
+def sidecarHost = "127.0.0.1"
+def isRunning = false
+
+// 1. Check if the port is already occupied
+try {
+    new Socket("127.0.0.1", sidecarPort).withCloseable { isRunning = true }
+} catch (Exception e) {
+    ec.logger.info("MCE: Sidecar  Port is free, we need to spawn")
+}
+
+if (!isRunning) {
+    ec.logger.info("MCE: Sidecar not detected on port ${sidecarPort}. Spawning process...")
+    
+    // 2. Define the command and working directory
+    // We use the absolute path from the component location
+    def componentBase = "runtime/component/moqui-mce"
+    def command = [
+        "node", 
+        "sidecar/websocket-server.js", 
+        "--port", sidecarPort.toString(), 
+        "--host", sidecarHost, 
+        "-f"
+    ]
+
+    try {
+        ProcessBuilder pb = new ProcessBuilder(command)
+        pb.directory(new File(ec.factory.moquiHome, componentBase))
+        
+        // Redirect logs to a dedicated file in the moqui log directory
+        def logFile = new File(ec.factory.moquiHome, "runtime/log/mce-sidecar.log")
+        pb.redirectOutput(ProcessBuilder.Redirect.append(logFile))
+        pb.redirectError(ProcessBuilder.Redirect.append(logFile))
+
+        // 3. Start the process in the background
+        pb.start()
+        ec.logger.info("MCE: Sidecar process spawned. Logs: runtime/log/mce-sidecar.log")
+    } catch (Exception e) {
+        ec.logger.error("MCE: Failed to spawn Sidecar: ${e.message}")
+    }
+} else {
+    ec.logger.info("MCE: Sidecar already active on port ${sidecarPort}.")
 }
 
 return context

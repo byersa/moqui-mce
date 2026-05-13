@@ -6,6 +6,12 @@
             <subscreens-item name="mce" menu-title="MCE Architect" menu-index="96"
                              location="component://moqui-mce/screen/moqui-mce.xml"/>
         </screen>
+        <screen location="component://webroot/screen/webroot.xml">
+            <subscreens-item name="assets" menu-title="Assets" menu-index="98"
+                             menu-include="false"
+                             location="component://moqui-mce/screen/mce/assets.xml"/>
+        </screen>
+
     </screen-facade>
     <webapp-list>
         <!-- 

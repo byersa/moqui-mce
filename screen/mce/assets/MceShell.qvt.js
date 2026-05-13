@@ -171,6 +171,7 @@ window.MceShell = {
                             <div class="text-h2 text-weight-thin">MCE2 CANVAS</div>
                             <div class="text-h4 text-weight-light q-mt-xl">Select a context to begin.</div>
                          </div>
+                                <q-btn id="testme" label="Test Me" round dense flat size="lg" />
                     </div>
                 </q-page>
             </q-page-container>

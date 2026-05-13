@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <entity-facade-xml>
     <moqui.mce.MceEditor editorId="PRODUCTION_PREVIEW" 
-                        componentPath="nursinghome/ProductionPreview.qvt.js" 
+                        componentPath="moqui-mce/screen/mce/assets/ProductionPreview.qvt.js" 
                         contextType="PROD" 
-                        description="Live Nursing Home Preview Editor"/>
+                        description="Live Preview Editor"/>
 </entity-facade-xml>

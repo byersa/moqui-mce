@@ -7,6 +7,9 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from 'dotenv';
+import { wss } from './websocket-server.js'; // Import the pipe
+import { assembleSuperSet } from './getArtifactJSON.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -31,6 +34,50 @@ function log(msg) {
     console.error(`[MCE2-HOST DEBUG ${timestamp}] ${msg}`);
 }
 
+/**
+ * Sends a pulse command to the browser to highlight a UI element.
+ *
+ */
+function sendPulse(wss, componentId, color = 'amber-6') {
+    const command = {
+        action: 'updateProperty', // Matches BlueprintClient logic
+        payload: {
+            id: componentId,
+            properties: {
+                // Using Quasar colors or CSS border for the pulse effect
+                style: `outline: 3px solid ${color}; outline-offset: 2px; transition: all 0.3s ease;`
+            }
+        }
+    };
+
+    const message = JSON.stringify({ type: 'command', data: command });
+
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) { // 1 = OPEN
+            client.send(message);
+        }
+    });
+}
+
+// The Pulse Logic
+export function firePulse(componentId, color = 'amber-7') {
+    const message = JSON.stringify({
+        type: 'command',
+        data: {
+            action: 'updateProperty',
+            payload: {
+                id: componentId,
+                properties: {
+                    style: `outline: 4px solid ${color}; outline-offset: 2px; transition: all 0.3s;`
+                }
+            }
+        }
+    });
+
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) client.send(message);
+    });
+}
 log("Host process started successfully in ESM mode.");
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // RUGGED: Switching to the specialized tool-calling model
@@ -59,7 +106,29 @@ const model = genAI.getGenerativeModel({
                 },
                 required: ["huddleType", "location"] //
             }
-        }]
+        },
+        {
+            name: "get_artifact",
+            description: "Loads a Moqui XML artifact and its Blueprint into a MARIA-Superset JSON.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    component: { type: "string", description: "e.g., nursing-home" },
+                    path: { type: "string", description: "e.g., screen/nursinghome/ResidentAlert.xml" }
+                },
+                required: ["component", "path"]
+            },
+            handler: async (args) => {
+                // 1. Logic to read the XML from the disk
+                // 2. Logic to parse it using fast-xml-parser
+                // 3. Logic to return the JSON to the MceShell
+                const jsonSuperset = await assembleSuperSet(args.component, args.path);
+                return {
+                    content: [{ type: "text", text: JSON.stringify(jsonSuperset) }]
+                };
+            }
+        },
+        ]
     }]
 });
 

@@ -439,8 +439,21 @@ const BlueprintClient = {
             case 'updateProperty':
                 const target = findCompById(blueprint.structure, cmd.payload.id);
                 if (target) {
-                    target.properties = { ...(target.properties || {}), ...(cmd.payload.properties || {}) };
-                    console.log(`[Flash-Safe] Property updated for ${cmd.payload.id}`);
+                    // Capture original style to revert later
+                    const originalStyle = target.properties.style || '';
+
+                    // Apply the "Pulse"
+                    target.properties = {
+                        ...(target.properties || {}),
+                        ...(cmd.payload.properties || {})
+                    };
+                    console.log(`[Flash-Safe] Pulsing ${cmd.payload.id}`);
+
+                    // The Browser-side Timer (KRL Retrieval #2)
+                    setTimeout(() => {
+                        target.properties.style = originalStyle;
+                        console.log(`[Flash-Safe] Pulse cleared for ${cmd.payload.id}`);
+                    }, 2000); // 2-second highlight
                 }
                 break;
             case 'addComponent':
@@ -467,5 +480,7 @@ const BlueprintClient = {
         }
     }
 };
+
+export { BlueprintClient };
 
 window.BlueprintClient = BlueprintClient;
