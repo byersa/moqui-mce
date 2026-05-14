@@ -97,59 +97,59 @@ window.MceShell = {
             </q-drawer>
 
             <!-- Contextual Sidecar (Right Drawer) - HIGH VISIBILITY MODE -->
-            <q-drawer v-model="rightDrawerOpen" side="right" :mini="rightDrawerMini" bordered class="bg-blue-grey-10 text-white" :width="550">
+            <q-drawer v-model="rightDrawerOpen" side="right" :mini="rightDrawerMini" bordered class="bg-white text-black" :width="550">
                 <div v-if="!rightDrawerMini" class="column no-wrap fit">
-                    <q-toolbar class="bg-blue-grey-9 text-white" style="height: 70px;">
+                    <q-toolbar class="bg-grey-2 text-black" style="height: 70px;">
                         <q-toolbar-title class="text-h5 text-uppercase letter-spacing-2">Discovery</q-toolbar-title>
                         <q-btn flat round dense size="lg" icon="chevron_right" @click="sidecarState = 'mini'" />
                     </q-toolbar>
 
                     <!-- Editor Discovery Section - JUMBO -->
-                    <div class="q-pa-lg bg-blue-grey-9">
-                        <div class="text-h5 text-blue-grey-4 q-mb-md font-weight-bold">Registered Editors</div>
-                        <q-list dark padding class="bg-blue-grey-10 rounded-borders shadow-2">
+                    <div class="q-pa-lg bg-grey-1">
+                        <div class="text-h5 text-grey-7 q-mb-md font-weight-bold">Registered Editors</div>
+                        <q-list padding class="bg-white rounded-borders shadow-1">
                             <q-item v-for="editor in editors" :key="editor.value" 
                                     clickable v-ripple 
                                     class="q-py-md"
                                     :active="activeEditor === editor.value"
-                                    active-class="bg-secondary text-white shadow-5"
+                                    active-class="bg-primary text-white shadow-5"
                                     @click="loadEditor(editor)">
                                 <q-item-section avatar>
                                     <q-icon :name="activeEditor === editor.value ? 'check_circle' : 'dashboard_customize'" size="md" />
                                 </q-item-section>
                                 <q-item-section>
                                     <q-item-label class="text-h5">{{ editor.label }}</q-item-label>
-                                    <q-item-label class="text-subtitle1 text-blue-grey-4 q-mt-xs">{{ editor.type }}</q-item-label>
+                                    <q-item-label class="text-subtitle1 text-grey-6 q-mt-xs">{{ editor.type }}</q-item-label>
                                 </q-item-section>
                             </q-item>
-                            <q-item v-if="editors.length === 0" class="text-h5 text-blue-grey-6 italic q-pa-lg">
-                                <q-item-section avatar><q-spinner-dots color="blue-grey-6" size="md" /></q-item-section>
+                            <q-item v-if="editors.length === 0" class="text-h5 text-grey-6 italic q-pa-lg">
+                                <q-item-section avatar><q-spinner-dots color="primary" size="md" /></q-item-section>
                                 <q-item-section>Searching registry...</q-item-section>
                             </q-item>
                         </q-list>
                     </div>
 
-                    <q-separator dark />
+                    <q-separator />
 
                     <!-- Messages Area - HIGH READABILITY -->
                     <q-scroll-area class="col q-pa-lg mce-chat-history">
                         <div v-for="(msg, idx) in messages" :key="idx" 
-                             :class="['q-mb-xl rounded-borders q-pa-lg shadow-2', msg.role === 'user' ? 'bg-blue-grey-9 text-right' : 'bg-blue-grey-8']">
-                            <div class="text-h6 text-blue-grey-4 uppercase q-mb-sm">{{ msg.role }}</div>
-                            <div class="text-h5 white-pre-wrap line-height-1-5">{{ msg.text }}</div>
+                             :class="['mce-message-container', msg.role === 'user' ? 'mce-message-user' : 'mce-message-assistant']">
+                            <div class="mce-message-role">{{ msg.role }}</div>
+                            <div class="mce-message-text">{{ msg.text }}</div>
                         </div>
                     </q-scroll-area>
 
                     <!-- Input Area - JUMBO INPUT -->
-                    <div id="mce-chat-input-area" class="q-pa-lg bg-blue-grey-9">
-                        <q-input dark filled v-model="userInput" 
+                    <div id="mce-chat-input-area" class="q-pa-lg bg-white">
+                        <q-input filled v-model="userInput" 
                                  placeholder="Ask AI Architect..." 
                                  @keyup.enter="sendMessage"
                                  input-class="text-h5"
                                  label-class="text-h5"
                                  style="font-size: 1.5rem">
                             <template v-slot:append>
-                                <q-btn round dense flat icon="send" size="lg" @click="sendMessage" />
+                                <q-btn round dense flat icon="send" color="primary" size="lg" @click="sendMessage" />
                             </template>
                         </q-input>
                     </div>

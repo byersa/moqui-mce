@@ -97,6 +97,16 @@
                             console.warn("MCE Shell: Command received but blueprint not loaded.");
                         }
                     });
+                    // NEW: Shows the AI's words in the chat box
+                    window.addEventListener('webmcp-message', (event) => {
+                        const msg = event.detail;
+                        console.info("MCE Shell received Chat Message:", msg.text);
+                        
+                        // Push the message into your Shell's reactive message array
+                        if (window.MceShellInstance && window.MceShellInstance.messages) {
+                            window.MceShellInstance.messages.push(msg);
+                        }
+                    });
                     window.addEventListener('DOMContentLoaded', () => {
                         const initMce = () => {
                             // 1. Check for the Raw Pinia Library (from CDN)
@@ -113,7 +123,8 @@
                                 // 3. Register Plugins
                                 const pinia = createPinia();
                                 app.use(pinia);
-                                const meetingsStore = useMeetingsStore();
+                                window.meetingsStore = useMeetingsStore(); //
+                                console.info("MCE: meetingsStore attached to window.");
                                 app.use(window.Quasar, { config: { dark: false } });
                                 app.use(window.BlueprintClient);
                         

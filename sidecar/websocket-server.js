@@ -39,6 +39,8 @@ const __dirname = dirname(__filename);
 
 // Create HTTP server with CORS headers
 const httpServer = createServer(async (req, res) => {
+
+    const { pathname } = parse(req.url);
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -51,34 +53,41 @@ const httpServer = createServer(async (req, res) => {
         return;
     }
 
-    const { pathname } = parse(req.url);
+    if (req.method === 'POST' && pathname === '/command') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const command = JSON.parse(body);
+                console.error(`[Sidecar] Received HTTP Command: ${command.action}`);
 
-    // Static Asset Serving (for webmcp.js, etc.)
-    if (pathname && pathname !== '/' && !pathname.includes('..')) {
-        const fileName = pathname.startsWith('/') ? pathname.slice(1) : pathname;
-        const filePath = join(__dirname, fileName);
+                // Broadcast to all connected WebSocket clients
+                wss.clients.forEach(client => {
+                    if (client.readyState === 1) { // 1 = OPEN
+                        client.send(JSON.stringify({
+                            type: 'command', // Tells BlueprintClient to process this
+                            data: command
+                        }));
+                    }
+                });
 
-        try {
-            const content = await fsp.readFile(filePath);
-            let contentType = 'text/plain';
-            if (fileName.endsWith('.js')) contentType = 'application/javascript';
-            else if (fileName.endsWith('.json')) contentType = 'application/json';
-            else if (fileName.endsWith('.css')) contentType = 'text/css';
-
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content);
-            return;
-        } catch (e) {
-            // Fall through to default if file not found
-        }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'broadcasted', action: command.action }));
+            } catch (e) {
+                res.writeHead(400);
+                res.end('Invalid JSON');
+            }
+        });
+        return;
     }
+
 
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WebMCP WebSocket server is running');
 });
 
 // Create WebSocket server instance
-const wss = new WebSocketServer({
+export const wss = new WebSocketServer({
     server: httpServer,
     clientTracking: true,
     verifyClient: verifyClientToken
@@ -193,6 +202,7 @@ wss.on('connection', (ws, req) => {
 
     // Set channel based on connection path
     const clientChannel = path || '/';
+    mcpHostProcess = startHostProcess(ws, clientChannel);
 
     console.error(`Client connected from ${req.socket.remoteAddress} to path: ${clientChannel}`);
 
@@ -382,31 +392,28 @@ wss.on('connection', (ws, req) => {
 
                 case 'userMessage':
                     console.error(`[Sidecar] UI Message: ${data.text}`);
-                    //console.error(`[Sidecar] mcpHostProcess: ${JSON.stringify(mcpHostProcess)}`);
-                    //console.error(`[Sidecar] mcpHostProcess.stdin: ${JSON.stringify(mcpHostProcess.stdin)}`);
+                    console.error(`[Sidecar] mcpHostProcess: ${JSON.stringify(mcpHostProcess)}`);
 
-                    if (mcpHostProcess && mcpHostProcess.stdin) {
-                        // We use a structured notification that the MCP Host is now 
-                        // listening for via its 'RAW-IN' listener.
+                    // RUGGED: Check if the process is actually still running and writable
+                    if (mcpHostProcess && !mcpHostProcess.killed && mcpHostProcess.stdin && mcpHostProcess.stdin.writable) {
                         const mcpMessage = JSON.stringify({
                             jsonrpc: "2.0",
                             method: "notifications/message",
-                            params: {
-                                text: data.text,
-                                mcpToken: data.mcpToken // Included for session context
-                            }
-                        }) + "\n"; // CRITICAL: The newline 'submits' the data
+                            params: { text: data.text, mcpToken: data.mcpToken }
+                        }) + "\n";
 
                         mcpHostProcess.stdin.write(mcpMessage, (err) => {
                             if (err) console.error(`[Sidecar] Pipe Error: ${err}`);
                             else console.error("[Sidecar] Successfully pushed user prompt to Host.");
                         });
                     } else {
-                        console.error("[Sidecar] ERROR: Host process not found or pipe closed.");
+                        console.error("[Sidecar] ERROR: Host process is dead or stdin is not writable.");
                     }
 
-                    // Keep the WebSocket relay so the UI knows the message was sent
-                    sendNotification(ws, clientChannel, 'userMessage', data, true);
+                    // Only relay back to the UI if the socket is actually OPEN
+                    if (ws.readyState === 1) {
+                        sendNotification(ws, clientChannel, 'userMessage', data, true);
+                    }
                     break;
 
                 default:
@@ -1469,7 +1476,7 @@ Use --clean to remove all authorized tokens when you want to start fresh.
   `);
 };
 
-function startHostProcess() {
+function startHostProcess(ws, clientChannel) {
     // RUGGED: Anchor paths to the script location
     const hostPath = join(__dirname, '../mcp-host/mcp-host.js');
 
@@ -1531,21 +1538,41 @@ function startHostProcess() {
                 try {
                     const message = JSON.parse(jsonCandidate);
                     console.error(`[PIPE-DEBUG] Valid JSON found. Method: ${message.method}`);
+                    // Inside the mcpHostProcess.stdout.on('data', ...) handler
 
-                    if (message.method === "callTool") {
-                        console.error(`[PIPE-WATCH] DIRECT RELAY: ${message.params.tool}`);
-                        sendNotification(null, MCP_PATH, 'callTool', message.params, true);
+                    // 1. Handle JSON-RPC Notifications (The Standard Way)
+                    if (message.method === 'notifications/message') {
+                        const text = message.params.text;
+                        // If it's a nested command pulse, relay it as a command
+                        if (message.params.type === 'command') {
+                            sendNotification(ws, clientChannel, 'command', message.params.data, true);
+                        } else {
+                            // Otherwise, treat it as a standard chat message
+                            sendNotification(ws, clientChannel, 'userMessage', { text }, true);
+                        }
                     }
-                    else if (message.method === "notifications/message") {
-                        console.error(`[PIPE-WATCH] AI ACK RELAY: ${message.params.text}`);
-                        // Relay to UI
-                        sendNotification(null, MCP_PATH, 'aiResponse', { text: message.params.text }, true);
+                    // 2. Handle Direct Relay (The "Quick Pulse" Way)
+                    else if (message.type === 'command' || message.type === 'userMessage') {
+                        sendNotification(ws, clientChannel, message.type, message.data || message, true);
+                    }
+                    // 3. Handle Standard Tool Execution
+                    else if (message.method === 'callTool') {
+                        sendNotification(ws, clientChannel, 'callTool', message.params, true);
                     } else {
-                        console.error(`[PIPE-DEBUG] Unknown method: ${message.method}`);
+                        console.warn(`[Sidecar] Unrecognized Pipe Message:`, JSON.stringify(message));
+
+                        // Log to the sidecar log file so we can analyze the pattern later
+                        log(`[UNKNOWN-PATTERN] ${line}`);
+
+                        // Optionally relay as a raw message so the developer (you) can see it in Chat
+                        if (ws.readyState === 1) {
+                            sendNotification(ws, clientChannel, 'userMessage', {
+                                text: `[DEBUG] Received unknown message type from AI: ${message.type || 'No Type'}`
+                            }, true);
+                        }
                     }
                 } catch (e) {
-                    console.error(`[PIPE-DEBUG] JSON Parse Error: ${e.message}`);
-                    // Not valid JSON for this specific line, move to next
+                    console.error("[Sidecar] Pipe Relay Error:", e.message);
                 }
             } else {
                 console.error(`[PIPE-DEBUG] No JSON brackets found in line.`);
@@ -1714,26 +1741,28 @@ const main = async () => {
     }
 };
 
-main().catch(error => {
-    console.error('Error in main:', error);
-    process.exit(1);
-}).then(() => {
-    // 1. Start the internal WebMCP relay (The Hand)
-    if (CONFIG.startMCP) {
-        setTimeout(() => {
-            console.error("[Sidecar] Starting internal WebMCP relay...");
-            runMcpServer(serverToken).catch((error) => {
-                console.error("Fatal error in internal relay:", error);
-                process.exit(1);
-            });
-        }, 100);
-    }
+if (process.argv[1] === fileURLToPath(import.meta.url)) { //
+    main().catch(error => {
+        console.error('Error in main:', error);
+        process.exit(1);
+    }).then(() => {
+        // 1. Start the internal WebMCP relay (The Hand)
+        if (CONFIG.startMCP) {
+            setTimeout(() => {
+                console.error("[Sidecar] Starting internal WebMCP relay...");
+                runMcpServer(serverToken).catch((error) => {
+                    console.error("Fatal error in internal relay:", error);
+                    process.exit(1);
+                });
+            }, 100);
+        }
 
-    // 2. Start the primary MCE2 MCP Host (The Brain)
-    if (!process.argv.includes('--quit') && !process.argv.includes('--new')) {
-        setTimeout(() => {
-            // We use our new Rugged function and store the reference
-            mcpHostProcess = startHostProcess();
-        }, 500);
-    }
-});
+        //        // 2. Start the primary MCE2 MCP Host (The Brain)
+        //        if (!process.argv.includes('--quit') && !process.argv.includes('--new')) {
+        //            setTimeout(() => {
+        //                // We use our new Rugged function and store the reference
+        //                mcpHostProcess = startHostProcess();
+        //            }, 500);
+        //        }
+    });
+}

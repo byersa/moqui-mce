@@ -24,6 +24,68 @@ html, body {
     max-height: 100vh !important; 
 }
 
+/* AI Chat High Contrast Styles */
+.mce-chat-history {
+    background-color: #f8f9fa !important;
+}
+
+.mce-message-container {
+    margin-bottom: 24px !important;
+    padding: 16px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    line-height: 1.6 !important;
+    max-width: 90%;
+}
+
+.mce-message-user {
+    background-color: #e3f2fd !important;
+    color: #0d47a1 !important;
+    margin-left: auto !important;
+    border: 1px solid #bbdefb !important;
+}
+
+.mce-message-assistant {
+    background-color: #ffffff !important;
+    color: #212121 !important;
+    margin-right: auto !important;
+    border: 1px solid #eeeeee !important;
+}
+
+.mce-message-role {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin-bottom: 8px !important;
+    color: #757575 !important;
+}
+
+.mce-message-text {
+    font-size: 1.1rem !important;
+    white-space: pre-wrap !important;
+}
+
+/* Quasar Component Overrides for High Contrast */
+.q-message-text {
+    color: #212121 !important; /* Force dark text */
+}
+
+.q-message-container {
+    background-color: transparent !important;
+}
+
+.q-message-text--sent {
+    background-color: #e3f2fd !important; /* Light blue bubble for sent */
+    color: #0d47a1 !important;
+}
+
+.q-message-text--received {
+    background-color: #ffffff !important; /* White bubble for received */
+    color: #212121 !important;
+    border: 1px solid #eeeeee !important;
+}
+
 .letter-spacing-1 { letter-spacing: 1px; }
 
 /* Visual Parity with moqui-ai theme */
@@ -40,9 +102,9 @@ html, body {
 #mce-chat-input-area { 
     z-index: 3005 !important; 
     width: 100% !important;
-    background: #263238 !important;
-    border-top: 1px solid rgba(255,255,255,0.15) !important;
-    box-shadow: 0 -4px 10px rgba(0,0,0,0.3) !important;
+    background: #ffffff !important;
+    border-top: 1px solid #e0e0e0 !important;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.05) !important;
 }
 
 /* Ensure flex context works properly in drawers */

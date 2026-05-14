@@ -1399,8 +1399,11 @@ if (typeof window.WebMcpClient === 'undefined') {
             // Set up socket message handler
             this.socket.addEventListener('message', (event) => {
                 try {
+                    console.error(`[WebMCP], message handler, event: ${event.data}`);
                     const message = JSON.parse(event.data);
+                    console.error(`[WebMCP], message handler, message: ${JSON.stringify(message)}`);
                     this._handleServerMessage(message);
+                    console.error('[WebMCP], message handler, <<<final>>>');
                 } catch (error) {
                     console.error(`Error parsing message: ${error.message}`);
                 }
@@ -1478,6 +1481,29 @@ if (typeof window.WebMcpClient === 'undefined') {
                     console.error(`Server error: ${message.message}`);
                     break;
 
+                case 'userMessage':
+                    console.log(`[WebMCP] AI Message received: ${message.text}`);
+
+                    // Dispatch a global event so the Vue/Quasar UI can render the message
+                    window.dispatchEvent(new CustomEvent('webmcp-message', {
+                        detail: {
+                            type: 'text',
+                            text: message.text,
+                            role: 'assistant',
+                            timestamp: new Date().toISOString()
+                        }
+                    }));
+                    break;
+                case 'command':
+                    console.log("MCE Pulse Triggered:", message);
+                    // Dispatch to your Pinia store or BlueprintClient
+                    if (window.meetingsStore) {
+                        // Use the store's action to process the data
+                        window.meetingsStore.handleCommand(message);
+                    } else {
+                        console.warn("Pulse received, but meetingsStore is not yet initialized.");
+                    }
+                    break;
                 default:
                     console.warn(`Unknown message type: ${message.type}`);
             }

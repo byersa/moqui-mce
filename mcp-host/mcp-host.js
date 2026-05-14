@@ -7,8 +7,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from 'dotenv';
-import { wss } from './websocket-server.js'; // Import the pipe
-import { assembleSuperSet } from './getArtifactJSON.js';
+import { wss } from '../sidecar/websocket-server.js'; // Import the pipe
+import { assembleSuperSet } from '../sidecar/getArtifactJSON.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -84,50 +84,46 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
     model: "gemini-3.1-pro-preview-customtools",
     tools: [{
-        functionDeclarations: [{
-            name: "comm_send_huddle_alert",
-            description: "Triggers a high-priority staff alert for resident safety or facility emergencies.",
-            parameters: {
-                type: "object",
-                properties: {
-                    huddleType: {
-                        type: "string",
-                        enum: ["Emergency", "Clinical", "Administrative"], // RUGGED: Restrict to valid types
-                        description: "The category of the huddle alert."
+        functionDeclarations: [
+            {
+                name: "get_artifact",
+                description: "Loads a Moqui XML artifact and its Blueprint into a MARIA-Superset JSON.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        component: { type: "string", description: "e.g., nursing-home" },
+                        path: { type: "string", description: "e.g., screen/nursinghome/ResidentAlert.xml" }
                     },
-                    location: {
-                        type: "string",
-                        description: "The specific wing or room (e.g., 'North Wing', 'Dining Hall')."
-                    },
-                    note: {
-                        type: "string",
-                        description: "Brief details about the resident or incident."
-                    }
+                    required: ["component", "path"]
                 },
-                required: ["huddleType", "location"] //
-            }
-        },
-        {
-            name: "get_artifact",
-            description: "Loads a Moqui XML artifact and its Blueprint into a MARIA-Superset JSON.",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    component: { type: "string", description: "e.g., nursing-home" },
-                    path: { type: "string", description: "e.g., screen/nursinghome/ResidentAlert.xml" }
-                },
-                required: ["component", "path"]
+                handler: async (args) => {
+                    // 1. Logic to read the XML from the disk
+                    // 2. Logic to parse it using fast-xml-parser
+                    // 3. Logic to return the JSON to the MceShell
+                    const jsonSuperset = await assembleSuperSet(args.component, args.path);
+                    return {
+                        content: [{ type: "text", text: JSON.stringify(jsonSuperset) }]
+                    };
+                }
             },
-            handler: async (args) => {
-                // 1. Logic to read the XML from the disk
-                // 2. Logic to parse it using fast-xml-parser
-                // 3. Logic to return the JSON to the MceShell
-                const jsonSuperset = await assembleSuperSet(args.component, args.path);
-                return {
-                    content: [{ type: "text", text: JSON.stringify(jsonSuperset) }]
-                };
-            }
-        },
+            {
+                name: "send_facility_alert",
+                description: "Triggers a facility-wide alert for emergencies, clinical huddles, or administrative needs.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        alertType: {
+                            type: "string",
+                            enum: ["RESIDENT_MISSING", "FALL_DETECTED", "CLINICAL_HUDDLE", "ADMIN_NOTICE"],
+                            description: "The priority and category of the alert."
+                        },
+                        residentName: { type: "string", description: "Name of the resident involved, if applicable." },
+                        location: { type: "string", description: "The room, wing, or area (e.g., '102-A', 'North Garden')." },
+                        note: { type: "string", description: "Brief details about the situation." }
+                    },
+                    required: ["alertType", "location"]
+                }
+            },
         ]
     }]
 });
@@ -147,19 +143,44 @@ process.stdin.on('data', async (data) => {
         // 2. Check for Tool Calls
         const calls = response.functionCalls();
         if (calls) {
-            log(`[TRACING-v2] GEMINI DECIDED TO CALL: ${calls[0].name}`);
+            const call = calls[0];
+            log(`[TRACING-v2] GEMINI DECIDED TO CALL: ${call.name}`);
 
             // 3. RUGGED: Format the response back to the Sidecar
-            const toolCall = JSON.stringify({
-                jsonrpc: "2.0",
-                method: "callTool",
-                params: {
-                    tool: calls[0].name,
-                    arguments: calls[0].args
-                }
-            }) + "\n";
+            // RUGGED: Convert the AI's tool call into the specific command the UI expects
+            if (call.name === "send_facility_alert") {
+                // Map the AI alertType to our Store actions
+                const isEmergency = ["RESIDENT_MISSING", "FALL_DETECTED"].includes(call.args.alertType);
 
-            process.stdout.write(toolCall); // Send back up the pipe to websocket, which receives it on !
+                const alertCmd = JSON.stringify({
+                    type: 'command',
+                    data: {
+                        action: call.args.alertType, // e.g., RESIDENT_MISSING
+                        residentName: call.args.residentName,
+                        room: call.args.location,
+                        note: call.args.note
+                    }
+                }) + "\n";
+
+                if (process.stdout.writable) {
+                    process.stdout.write(alertCmd);
+                } else {
+                    log("Warning: Attempted to write to a destroyed pipe.");
+                }
+                log(`[HOST] ${isEmergency ? 'EMERGENCY' : 'NOTICE'} Pulsed to UI.`);
+            } else {
+                // Handle other tools (like get_artifact) normally
+                const standardTool = JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: "callTool",
+                    params: { tool: call.name, arguments: call.args }
+                }) + "\n";
+                if (process.stdout.writable) {
+                    process.stdout.write(standardTool);
+                } else {
+                    log("Warning: Attempted to write to a destroyed pipe.");
+                }
+            }
 
             // 2. Send an Acknowledgement (The Feedback)
             // We send this as a standard message so the UI can display it

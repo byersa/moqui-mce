@@ -55,7 +55,14 @@
 
     <extend-entity entity-name="WorkEffort" package="mantle.work.effort" enable-audit-log="true">
         <field name="contextSnapshot" type="text-long"/>
-        <field name="proposedChanges" type="text-long"/>
+        <field name="proposedChanges" type="text-long" encrypt="true"/> 
+        <field name="meetingStatusId" type="id" description="Connects to StatusItem for meeting-specific lifecycles."/>
     </extend-entity>
 
+    <extend-entity entity-name="CommunicationEvent" package="mantle.party.communication" enable-audit-log="true">
+        <field name="agendaContainerId" type="id" description="Primary key bridge to Vue meetingsStore."/>
+        <field name="aiSummary" type="text-long" encrypt="true"/> 
+        <field name="rawTranscript" type="text-long" encrypt="true"/> 
+        <field name="meetingStateJson" type="text-long" description="Serialized Pinia state for session recovery."/>
+    </extend-entity>
 </entities>

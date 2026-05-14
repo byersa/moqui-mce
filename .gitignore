@@ -4,3 +4,5 @@ artifacts/
 *.log
 *.swp
 mcp-host/.env
+status.sh
+*.iml
